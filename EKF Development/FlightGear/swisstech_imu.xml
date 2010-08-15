@@ -1,0 +1,342 @@
+<?xml version="1.0"?>
+<PropertyList>
+ <comment>
+  <![CDATA[
+*******************************************************************************
+	SwissTech IMU Software Simulator Interface with Flightgear
+	This allows us to use the simulator as a drop in replacement for
+	tesing various algorithms and methods of Extended Kalman Filters
+	as well as Direction Cosine Matrix
+	
+	Author: Patrick Glass
+	Date Modified: May 20, 2010
+*******************************************************************************
+
+Flight Log to File Example
+fgfs --generic=file,out,1,/tmp/data.xml,myproto
+
+
+Network UDP Connection Example
+So with the abc-protocol.xml file ready, FlightGear can be started with
+
+fgfs --generic=socket,out,5,127.0.0.1,udp,swisstech_imu
+
+The --generic=socket,out,5,127.0.0.1,udp,swisstech_imu is the part that runs
+	the socket server and are broken down into the following elements 
+	separated by a comma.
+
+    * socket - tell FlightGear to open a socket
+    * out - to use the socket to output data ie transmit
+    * 5 - at five times a second
+    * 127.0.0.1 - on the loopback address
+    * udp - using the udp network protocol
+    * swisstech_imu - and using the swisstech_imu.xml file
+
+
+Source: http://wiki.flightgear.org/index.php/Howto:_Create_a_generic_protocol
+The tags are briefly described as
+
+<output>
+Contains the "formatting" protocol for output. Note that the same file can
+	contain an <input> section also for mapping input protocol/formatting
+
+<line_separator>
+What character(s) to use as a delimiter to "end" our line/blob of data
+	containing the three values. In this example its newline, but \n is also 
+	acceptable as would another other ascii characters, eg ##EOL##.
+
+<var_separator>
+What character(s) to use as a delimiter of the property values; in this example
+	were using the tab, also \t is acceptable or even @@@.
+
+<chunk>
+There are three chunk tags in this example to reflect the three properties were
+	interested in. IMPORTANT, the chunks are output in the order presented in
+	the xml file.
+Within each chuck the tags are described as
+	<name> - this is for reference and ease of use, is not necassary and, its
+		not transmitted (eg a <notes> tag). It could be useful elsewhere though
+		eg a shared configuration file with another application.
+	<node> - the property node.
+	<type> - this is the type of value needed for formatting. In our example
+		the autopilot is a string, whilst the other two values as float. Not 
+		setting the type can leads to strange stuff happening.
+	<format> - the output format. The altitude and elevator are
+		straighforward printf formatting, whilst the autopilot is "autopilot=%s".
+]]>
+ </comment>
+
+ <generic>
+
+  <output>
+   <line_separator>newline</line_separator>
+   <var_separator>tab</var_separator>
+
+   <chunk>
+    <name>time (sec)</name>
+    <type>float</type>
+    <format>%.4f</format>
+    <node>/sim/time/elapsed-sec</node>
+   </chunk>
+   
+   <!-- Roll, Pitch, Yaw used to compare estimated attitude with actual -->
+   <chunk>
+    <name>roll angle (rad)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/orientation/roll-deg</node>
+    <factor>0.01745329251994329576</factor>  <!-- degrees to radians -->
+   </chunk>
+   
+   <chunk>
+    <name>pitch angle (rad)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/orientation/pitch-deg</node>
+    <factor>0.01745329251994329576</factor>  <!-- degrees to radians -->
+   </chunk>
+   
+   <chunk>
+    <name>yaw angle (rad)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/orientation/heading-deg</node>
+    <factor>0.01745329251994329576</factor>  <!-- degrees to radians -->
+   </chunk>
+
+   <!-- Pilot Accelerations used to get simulated values for Accelerometer -->
+   <chunk>
+    <name>X accel (body axis) (m/s^2)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/accelerations/pilot/x-accel-fps_sec</node>
+    <factor>0.3048</factor>  <!-- feet to meter -->
+   </chunk>
+
+   <chunk>
+    <name>Y accel (m/s^2)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/accelerations/pilot/y-accel-fps_sec</node>
+    <factor>0.3048</factor>  <!-- feet to meter -->
+   </chunk>
+
+   <chunk>
+    <name>Z accel (m/s^2)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/accelerations/pilot/z-accel-fps_sec</node>
+    <factor>0.3048</factor>  <!-- feet to meter -->
+   </chunk>
+   
+   <!-- Angualr Rates are used to simulate Gyroscope -->
+   <chunk>
+    <name>roll rate "p" (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/fdm/jsbsim/velocities/pi-rad_sec</node>
+   </chunk>
+
+   <chunk>
+    <name>pitch rate "q" (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/fdm/jsbsim/velocities/qi-rad_sec</node>
+   </chunk>
+
+   <chunk>
+    <name>yaw rate "r" (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/fdm/jsbsim/velocities/ri-rad_sec</node>
+   </chunk>
+   
+   <chunk>
+    <name>roll rate (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/orientation/roll-rate-degps</node>
+	<factor>0.01745329251994329576</factor>  <!-- degrees to radians -->
+   </chunk>
+
+   <chunk>
+    <name>pitch rate (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/orientation/pitch-rate-degps</node>
+	<factor>0.01745329251994329576</factor>  <!-- degrees to radians -->
+   </chunk>
+
+   <chunk>
+    <name>yaw rate (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/orientation/yaw-rate-degps</node>
+	<factor>0.01745329251994329576</factor>  <!-- degrees to radians -->
+   </chunk>
+
+	<!-- Lat, Long, Elev used to simulate values from GPS -->
+   <chunk>
+    <name>latitude (rad)</name>
+    <type>double</type>
+    <format>%.12f</format>
+    <node>/position/latitude-deg</node>
+    <factor>0.01745329251994329576</factor>  <!-- degrees to radians -->
+   </chunk>
+
+   <chunk>
+    <name>longitude (rad)</name>
+    <type>double</type>
+    <format>%.12f</format>
+    <node>/position/longitude-deg</node>
+    <factor>0.01745329251994329576</factor>  <!-- degrees to radians -->
+   </chunk>
+
+   <chunk>
+    <name>elevation (m)</name>
+    <type>double</type>
+    <format>%.3f</format>
+    <node>/position/altitude-ft</node>
+    <factor>0.3048</factor>                  <!-- feet to meter -->
+   </chunk>
+
+  </output>
+  
+  <input>
+  
+   <line_separator>newline</line_separator>
+   <var_separator>tab</var_separator>
+
+   <chunk>
+    <name>time (sec)</name>
+    <type>float</type>
+    <format>%.4f</format>
+    <node>/sim/time/elapsed-sec</node>
+   </chunk>
+   
+   <!-- Roll, Pitch, Yaw used to compare estimated attitude with actual -->
+   <chunk>
+    <name>roll angle (rad)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/orientation/roll-deg</node>
+    <factor>57.295779513082323</factor>  <!-- radians to degrees -->
+   </chunk>
+   
+   <chunk>
+    <name>pitch angle (rad)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/orientation/pitch-deg</node>
+    <factor>57.295779513082323</factor>  <!-- radians to degrees -->
+   </chunk>
+   
+   <chunk>
+    <name>yaw angle (rad)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/orientation/heading-deg</node>
+    <factor>57.295779513082323</factor>  <!-- radians to degrees -->
+   </chunk>
+
+   <!-- Pilot Accelerations used to get simulated values for Accelerometer -->
+   <chunk>
+    <name>X accel (body axis) (m/s^2)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/accelerations/pilot/x-accel-fps_sec</node>
+    <factor>3.280839895013123</factor>  <!-- meter to feet -->
+   </chunk>
+
+   <chunk>
+    <name>Y accel (m/s^2)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/accelerations/pilot/y-accel-fps_sec</node>
+    <factor>3.280839895013123</factor>  <!-- meter to feet -->
+   </chunk>
+
+   <chunk>
+    <name>Z accel (m/s^2)</name>
+    <type>float</type>
+    <format>%.5f</format>
+    <node>/accelerations/pilot/z-accel-fps_sec</node>
+    <factor>3.280839895013123</factor>  <!-- meter to feet -->
+   </chunk>
+   
+   <!-- Angualr Rates are used to simulate Gyroscope -->
+   <chunk>
+    <name>roll rate "p" (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/fdm/jsbsim/velocities/pi-rad_sec</node>
+   </chunk>
+
+   <chunk>
+    <name>pitch rate "q" (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/fdm/jsbsim/velocities/qi-rad_sec</node>
+   </chunk>
+
+   <chunk>
+    <name>yaw rate "r" (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/fdm/jsbsim/velocities/ri-rad_sec</node>
+   </chunk>
+   
+   <chunk>
+    <name>roll rate (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/orientation/roll-rate-degps</node>
+	<factor>57.295779513082323</factor>  <!-- radians to degrees -->
+   </chunk>
+
+   <chunk>
+    <name>pitch rate (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/orientation/pitch-rate-degps</node>
+	<factor>57.295779513082323</factor>  <!-- radians to degrees -->
+   </chunk>
+
+   <chunk>
+    <name>yaw rate (rad/s)</name>
+    <type>float</type>
+    <format>%.6f</format>
+    <node>/orientation/yaw-rate-degps</node>
+	<factor>57.295779513082323</factor>  <!-- radians to degrees -->
+   </chunk>
+
+	<!-- Lat, Long, Elev used to simulate values from GPS -->
+   <chunk>
+    <name>latitude (rad)</name>
+    <type>double</type>
+    <format>%.12f</format>
+    <node>/position/latitude-deg</node>
+    <factor>57.295779513082323</factor>  <!-- radians to degrees -->
+   </chunk>
+
+   <chunk>
+    <name>longitude (rad)</name>
+    <type>double</type>
+    <format>%.12f</format>
+    <node>/position/longitude-deg</node>
+    <factor>57.295779513082323</factor>  <!-- radians to degrees -->
+   </chunk>
+
+   <chunk>
+    <name>elevation (m)</name>
+    <type>double</type>
+    <format>%.3f</format>
+    <node>/position/altitude-ft</node>
+    <factor>3.280839895013123</factor>  <!-- meter to feet -->
+   </chunk>
+
+  </input>
+
+ </generic>
+
+</PropertyList>
