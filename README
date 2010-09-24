@@ -1,0 +1,15 @@
+This folder contains experimental code, as well as
+code that is too immature to go into trunk.
+
+Don't put any of this unto your OP board firmware.
+Don't even THINK about flying any of this.
+
+Unless you know exactly what you are doing.
+In that case keep in mind:
+
+	GPL v 3: section 15..
+
+	THERE IS NO WARRANTY FOR THE PROGRAM...
+
+
+You have been warned!
