@@ -218,15 +218,16 @@ SRC += $(PIOSSTM32F10X)/pios_usb_hid_pwr.c
 SRC += $(PIOSCOMMON)/pios_sdcard.c
 SRC += $(PIOSCOMMON)/pios_com.c
 SRC += $(PIOSCOMMON)/pios_bmp085.c
-SRC += $(PIOSCOMMON)/pios_opahrs.c
-SRC += $(PIOSCOMMON)/pios_opahrs_proto.c
+#SRC += $(PIOSCOMMON)/pios_opahrs.c
+#SRC += $(PIOSCOMMON)/pios_opahrs_proto.c
 SRC += $(PIOSCOMMON)/printf-stdarg.c
-SRC += $(PIOSCOMMON)/pios_ahrs_comms.c
 
 ## Libraries for flight calculations
 SRC += $(FLIGHTLIB)/buffer.c
 SRC += $(FLIGHTLIB)/WorldMagModel.c
 SRC += $(FLIGHTLIB)/CoordinateConversions.c
+SRC += $(FLIGHTLIB)/ahrs_spi_comm.c
+SRC += $(FLIGHTLIB)/ahrs_comm_objects.c
 
 ## CMSIS for STM32
 SRC += $(CMSISDIR)/core_cm3.c

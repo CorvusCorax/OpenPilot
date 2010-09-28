@@ -98,6 +98,8 @@ SRC += ahrs_adc.c
 SRC += ahrs_timer.c
 SRC += insgps.c
 SRC += $(FLIGHTLIB)/CoordinateConversions.c
+SRC += $(FLIGHTLIB)/ahrs_spi_comm.c
+SRC += $(FLIGHTLIB)/ahrs_comm_objects.c
 
 ## PIOS Hardware (STM32F10x)
 SRC += $(PIOSSTM32F10X)/pios_sys.c
@@ -115,7 +117,6 @@ SRC += $(PIOSCOMMON)/pios_com.c
 SRC += $(PIOSCOMMON)/pios_hmc5843.c
 #SRC += $(PIOSCOMMON)/pios_opahrs_proto.c
 SRC += $(PIOSCOMMON)/printf-stdarg.c
-SRC += $(PIOSCOMMON)/pios_ahrs_comms.c
 
 ## CMSIS for STM32
 SRC += $(CMSISDIR)/core_cm3.c

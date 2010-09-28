@@ -51,32 +51,21 @@
  */
 
 #include "ahrs_comms.h"
-#include "CoordinateConversions.h"
-#include "stdbool.h"
 
-#include "pios_ahrs_comms.h" // library for OpenPilot AHRS access functions
+#include "ahrs_spi_comm.h"
 
 // Private constants
-#define STACK_SIZE 2000
+#define STACK_SIZE 1400
 #define TASK_PRIORITY (tskIDLE_PRIORITY+4)
 
 // Private types
 
-typedef struct
-{
-    UAVObjHandle object;
-    PIOS_AHRS_Handle memory;
-} ObjectMap;
-
 // Private variables
 static xTaskHandle taskHandle;
-static ObjectMap objectMap[MAX_AHRS_OBJECTS];
 
 
 // Private functions
 static void ahrscommsTask(void* parameters);
-static void ObjectUpdatedCb(UAVObjEvent * ev);
-static void AhrsUpdatedCb(PIOS_AHRS_Handle handle);
 
 
 /**
@@ -85,41 +74,7 @@ static void AhrsUpdatedCb(PIOS_AHRS_Handle handle);
  */
 int32_t AHRSCommsInitialize(void)
 {
-    PIOS_AHRS_InitComms();
-    if(PIOS_AHRS_GetError() == PIOS_AHRS_ERR_INIT) //An error in the source code - we are screwed
-    {
-        AlarmsSet(SYSTEMALARMS_ALARM_AHRSCOMMS, SYSTEMALARMS_ALARM_CRITICAL);
-        return(0);
-    }
-
-#define ADDMAP(idx,hnd) {\
-	int n = idx;\
-	objectMap[n].object = hnd##Handle();\
-	objectMap[n].memory = &(PIOS_AHRSGetMemory()->hnd);\
-	PIOS_AHRS_ConnectCallBack(&(PIOS_AHRSGetMemory()->hnd),AhrsUpdatedCb);}
-    int idx = 0;
-
-    ADDMAP(idx++, AttitudeRaw);
-    ADDMAP(idx++, AttitudeActual);
-    ADDMAP(idx++, AHRSSettings);
-    ADDMAP(idx++, AHRSCalibration);
-    ADDMAP(idx++, AttitudeSettings);
-    ADDMAP(idx++, AhrsStatus);
-    ADDMAP(idx++, BaroAltitude);
-    ADDMAP(idx++, GPSPosition);
-    ADDMAP(idx++, PositionActual);
-    ADDMAP(idx++, HomeLocation);
-    if(idx != MAX_AHRS_OBJECTS) //Each ADDMAP above incremented idx
-    {
-        PIOS_DEBUG_Assert(0);
-        AlarmsSet(SYSTEMALARMS_ALARM_AHRSCOMMS, SYSTEMALARMS_ALARM_CRITICAL);
-        return(0);
-    }
-    AHRSSettingsConnectCallback(ObjectUpdatedCb);
-    BaroAltitudeConnectCallback(ObjectUpdatedCb);
-    GPSPositionConnectCallback(ObjectUpdatedCb);
-    HomeLocationConnectCallback(ObjectUpdatedCb);
-    AHRSCalibrationConnectCallback(ObjectUpdatedCb);
+    AhrsInitComms();
 
     // Start main task
     xTaskCreate(ahrscommsTask, (signed char*)"AHRSComms", STACK_SIZE, NULL, TASK_PRIORITY, &taskHandle);
@@ -151,57 +106,33 @@ static void ahrscommsTask(void* parameters)
         AHRSSettingsData settings;
         AHRSSettingsGet(&settings);
 
-        PIOS_AHRS_SendObjects();
-        if(PIOS_AHRS_GetError() != PIOS_AHRS_ERR_NONE)
-        {
-            AlarmsSet(SYSTEMALARMS_ALARM_AHRSCOMMS,SYSTEMALARMS_ALARM_CRITICAL);
-        }else
-        {
-            AlarmsClear(SYSTEMALARMS_ALARM_AHRSCOMMS);
-        }
+        AhrsSendObjects();
+		AhrsCommStatus stat = AhrsGetStatus();
+		if(stat.linkOk)
+		{
+			AlarmsClear(SYSTEMALARMS_ALARM_AHRSCOMMS);
+		}else
+		{
+			AlarmsSet(SYSTEMALARMS_ALARM_AHRSCOMMS, SYSTEMALARMS_ALARM_WARNING);
+		}
+		AhrsStatusData sData;
+		AhrsStatusGet(&sData);
 
+		sData.LinkRunning = stat.linkOk;
+		sData.AhrsKickstarts = stat.remote.kickStarts;
+		sData.AhrsCrcErrors = stat.remote.crcErrors;
+		sData.AhrsRetries = stat.remote.retries;
+		sData.AhrsInvalidPackets = stat.remote.invalidPacket;
+		sData.OpCrcErrors = stat.local.crcErrors;
+		sData.OpRetries = stat.local.retries;
+		sData.OpInvalidPackets = stat.local.invalidPacket;
+
+		AhrsStatusSet(&sData);
         /* Wait for the next update interval */
         vTaskDelayUntil(&lastSysTime, settings.UpdatePeriod / portTICK_RATE_MS );
 
     }
 }
-
-
-static void AhrsUpdatedCb(PIOS_AHRS_Handle handle)
-{
-    for(int ct=0; ct< MAX_AHRS_OBJECTS; ct++)
-    {
-        if(handle == objectMap[ct].memory)
-        {
-            PIOS_AHRS_SharedObject data; //this is guaranteed to be big enough
-            PIOS_AHRS_GetData(objectMap[ct].memory, &data);
-            UAVObjSetData(objectMap[ct].object, &data);
-            return;
-        }
-    }
-}
-
-
-static void ObjectUpdatedCb(UAVObjEvent * ev)
-{
-    if(!(ev->event & EV_MASK_ALL_UPDATES))
-    {
-        return;
-    }
-    for(int ct=0; ct< MAX_AHRS_OBJECTS; ct++)
-    {
-        if(ev->obj == objectMap[ct].object)
-        {
-            PIOS_AHRS_SharedObject data; //this is guaranteed to be big enough
-            UAVObjGetData(ev->obj,&data);
-            PIOS_AHRS_SetData(objectMap[ct].memory, &data);
-            return;
-        }
-    }
-}
-
-
-
 
 
 
