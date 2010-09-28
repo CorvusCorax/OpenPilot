@@ -1,12 +1,12 @@
 /**
  ******************************************************************************
  * @addtogroup OpenPilotModules OpenPilot Modules
- * @{ 
+ * @{
  * @addtogroup StabilizationModule Stabilization Module
  * @brief Stabilization PID loops in an airframe type independent manner
- * @note This object updates the @ref ActuatorDesired "Actuator Desired" based on the 
+ * @note This object updates the @ref ActuatorDesired "Actuator Desired" based on the
  * PID loops on the @ref AttitudeDesired "Attitude Desired" and @ref AttitudeActual "Attitude Actual"
- * @{ 
+ * @{
  *
  * @file       stabilization.c
  * @author     The OpenPilot Team, http://www.openpilot.org Copyright (C) 2010.
@@ -123,7 +123,7 @@ static void stabilizationTask(void* parameters)
 			pitchErrorGlobal = angleDifference(
 					bound(attitudeDesired.Pitch, -stabSettings.PitchMax, stabSettings.PitchMax) - attitudeActual.Pitch
 				);
-		} 
+		}
 		else
 		{
 			// in AUTO mode, Stabilization is used to steer the plane freely,
@@ -140,7 +140,7 @@ static void stabilizationTask(void* parameters)
 			// FIXED WING STABILIZATION however does not.
 			yawErrorGlobal = 0;
 		}
-	
+
 		// local pitch error
 		pitchError = cos(DEG2RAD * attitudeActual.Roll) * pitchErrorGlobal + sin(DEG2RAD * attitudeActual.Roll) * yawErrorGlobal;
 		// local roll error (no translation needed - always local)
@@ -158,7 +158,7 @@ static void stabilizationTask(void* parameters)
 		}
 		// local yaw error
 		yawError = cos(DEG2RAD * attitudeActual.Roll) * yawErrorGlobal + sin(DEG2RAD * attitudeActual.Roll) * pitchErrorGlobal;
-		
+
 		// for the derivative, the local last errors are needed. Therefore global lasts are translated into local lasts
 
 		// pitch last
@@ -166,11 +166,11 @@ static void stabilizationTask(void* parameters)
 
 		// yaw last
 		yawErrorLast = cos(DEG2RAD * attitudeActual.Roll) * yawErrorLastGlobal + sin(DEG2RAD * attitudeActual.Roll) * pitchErrorLastGlobal;
-		
-		// global last variables are no longer needed 
+
+		// global last variables are no longer needed
 		pitchErrorLastGlobal = pitchErrorGlobal;
 		yawErrorLastGlobal = yawErrorGlobal;
-		
+
 		// local Pitch stabilization control loop
 		pitchDerivative = pitchError - pitchErrorLast;
 		pitchIntegralLimit = PITCH_INTEGRAL_LIMIT / stabSettings.PitchKi;
@@ -185,7 +185,7 @@ static void stabilizationTask(void* parameters)
 		actuatorDesired.Roll = stabSettings.RollKp*rollError + stabSettings.RollKi*rollIntegral + stabSettings.RollKd*rollDerivative;
 		actuatorDesired.Roll = bound(actuatorDesired.Roll, -1.0, 1.0);
 		rollErrorLast = rollError;
-
+sdf;
 
 		// local Yaw stabilization control loop (only enabled on VTOL airframes)
 		if (( systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_VTOL )||( systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_HELICP))
@@ -260,7 +260,7 @@ static float angleDifference(float val)
 	return val;
 }
 
-/** 
+/**
   * @}
   * @}
   */

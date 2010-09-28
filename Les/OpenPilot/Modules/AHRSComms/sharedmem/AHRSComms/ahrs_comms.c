@@ -57,7 +57,7 @@
 #include "pios_ahrs_comms.h" // library for OpenPilot AHRS access functions
 
 // Private constants
-#define STACK_SIZE 1000
+#define STACK_SIZE 2000
 #define TASK_PRIORITY (tskIDLE_PRIORITY+4)
 
 // Private types
@@ -70,7 +70,7 @@ typedef struct
 
 // Private variables
 static xTaskHandle taskHandle;
-static ObjectMap[MAX_AHRS_OBJECTS] objectMap;
+static ObjectMap objectMap[MAX_AHRS_OBJECTS];
 
 
 // Private functions
@@ -85,34 +85,41 @@ static void AhrsUpdatedCb(PIOS_AHRS_Handle handle);
  */
 int32_t AHRSCommsInitialize(void)
 {
+    PIOS_AHRS_InitComms();
+    if(PIOS_AHRS_GetError() == PIOS_AHRS_ERR_INIT) //An error in the source code - we are screwed
+    {
+        AlarmsSet(SYSTEMALARMS_ALARM_AHRSCOMMS, SYSTEMALARMS_ALARM_CRITICAL);
+        return(0);
+    }
 
-    PIOS_AhrsCommsInit();
-
-#define ADDMAP(hnd) ObjectMap[idx].object = hnd##Handle(); ObjectMap[idx++].memory = &(PIOS_AHRSGetMemory()->hnd)
+#define ADDMAP(idx,hnd) {\
+	int n = idx;\
+	objectMap[n].object = hnd##Handle();\
+	objectMap[n].memory = &(PIOS_AHRSGetMemory()->hnd);\
+	PIOS_AHRS_ConnectCallBack(&(PIOS_AHRSGetMemory()->hnd),AhrsUpdatedCb);}
     int idx = 0;
-    initError = 0;
-    ADDMAP(AttitudeActual);
-    ADDMAP(AttitudeRaw);
-    ADDMAP(AHRSSettings);
-    ADDMAP(AHRSCalibration);
-    ADDMAP(AttitudeSettings);
-    ADDMAP(AhrsStatus);
-    ADDMAP(BaroAltitude);
-    ADDMAP(GPSPosition);
-    ADDMAP(PositionActual);
-    ADDMAP(HomeLocation);
+
+    ADDMAP(idx++, AttitudeRaw);
+    ADDMAP(idx++, AttitudeActual);
+    ADDMAP(idx++, AHRSSettings);
+    ADDMAP(idx++, AHRSCalibration);
+    ADDMAP(idx++, AttitudeSettings);
+    ADDMAP(idx++, AhrsStatus);
+    ADDMAP(idx++, BaroAltitude);
+    ADDMAP(idx++, GPSPosition);
+    ADDMAP(idx++, PositionActual);
+    ADDMAP(idx++, HomeLocation);
     if(idx != MAX_AHRS_OBJECTS) //Each ADDMAP above incremented idx
     {
         PIOS_DEBUG_Assert(0);
+        AlarmsSet(SYSTEMALARMS_ALARM_AHRSCOMMS, SYSTEMALARMS_ALARM_CRITICAL);
+        return(0);
     }
-
-
     AHRSSettingsConnectCallback(ObjectUpdatedCb);
     BaroAltitudeConnectCallback(ObjectUpdatedCb);
     GPSPositionConnectCallback(ObjectUpdatedCb);
     HomeLocationConnectCallback(ObjectUpdatedCb);
     AHRSCalibrationConnectCallback(ObjectUpdatedCb);
-
 
     // Start main task
     xTaskCreate(ahrscommsTask, (signed char*)"AHRSComms", STACK_SIZE, NULL, TASK_PRIORITY, &taskHandle);
@@ -126,9 +133,7 @@ int32_t AHRSCommsInitialize(void)
  */
 static void ahrscommsTask(void* parameters)
 {
-    enum opahrs_result result;
     portTickType lastSysTime;
-
     AhrsStatusData data;
 
     AlarmsSet(SYSTEMALARMS_ALARM_AHRSCOMMS, SYSTEMALARMS_ALARM_CRITICAL);
@@ -143,10 +148,17 @@ static void ahrscommsTask(void* parameters)
     // Main task loop
     while (1)
     {
+        AHRSSettingsData settings;
+        AHRSSettingsGet(&settings);
 
         PIOS_AHRS_SendObjects();
-        if(PIOS_AHRS_GetError() != )
-        AlarmsClear(SYSTEMALARMS_ALARM_AHRSCOMMS);
+        if(PIOS_AHRS_GetError() != PIOS_AHRS_ERR_NONE)
+        {
+            AlarmsSet(SYSTEMALARMS_ALARM_AHRSCOMMS,SYSTEMALARMS_ALARM_CRITICAL);
+        }else
+        {
+            AlarmsClear(SYSTEMALARMS_ALARM_AHRSCOMMS);
+        }
 
         /* Wait for the next update interval */
         vTaskDelayUntil(&lastSysTime, settings.UpdatePeriod / portTICK_RATE_MS );
@@ -159,15 +171,16 @@ static void AhrsUpdatedCb(PIOS_AHRS_Handle handle)
 {
     for(int ct=0; ct< MAX_AHRS_OBJECTS; ct++)
     {
-        if(handle == objectMap[ct].data)
+        if(handle == objectMap[ct].memory)
         {
             PIOS_AHRS_SharedObject data; //this is guaranteed to be big enough
             PIOS_AHRS_GetData(objectMap[ct].memory, &data);
-            UAVObjectSetData(objectMap[ct].object, &data)
+            UAVObjSetData(objectMap[ct].object, &data);
             return;
         }
     }
 }
+
 
 static void ObjectUpdatedCb(UAVObjEvent * ev)
 {

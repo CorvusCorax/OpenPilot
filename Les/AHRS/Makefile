@@ -94,7 +94,7 @@ OPUAVOBJINC = $(OPUAVOBJ)/inc
 SRC = ahrs.c
 SRC += pios_board.c
 SRC += ahrs_adc.c
-SRC += ahrs_fsm.c
+#SRC += ahrs_fsm.c
 SRC += ahrs_timer.c
 SRC += insgps.c
 SRC += $(FLIGHTLIB)/CoordinateConversions.c
@@ -113,7 +113,7 @@ SRC += $(PIOSSTM32F10X)/pios_exti.c
 ## PIOS Hardware (Common)
 SRC += $(PIOSCOMMON)/pios_com.c
 SRC += $(PIOSCOMMON)/pios_hmc5843.c
-SRC += $(PIOSCOMMON)/pios_opahrs_proto.c
+#SRC += $(PIOSCOMMON)/pios_opahrs_proto.c
 SRC += $(PIOSCOMMON)/printf-stdarg.c
 SRC += $(PIOSCOMMON)/pios_ahrs_comms.c
 

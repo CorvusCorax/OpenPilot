@@ -221,6 +221,7 @@ SRC += $(PIOSCOMMON)/pios_bmp085.c
 SRC += $(PIOSCOMMON)/pios_opahrs.c
 SRC += $(PIOSCOMMON)/pios_opahrs_proto.c
 SRC += $(PIOSCOMMON)/printf-stdarg.c
+SRC += $(PIOSCOMMON)/pios_ahrs_comms.c
 
 ## Libraries for flight calculations
 SRC += $(FLIGHTLIB)/buffer.c

@@ -39,6 +39,7 @@
 #include "attitudeactual.h"
 #include "manualcontrolcommand.h"
 #include "systemsettings.h"
+#include "attituderaw.h"
 
 
 // Private constants
@@ -130,11 +131,14 @@ static void stabilizationTask(void* parameters)
 		rollError = 0;
 		rollDerivative = 0;
 
-		actuatorDesired.Roll = (attitudeActual.Roll - rollErrorLast) * stabSettings.RollKd;
+
+
+AttitudeRawData d;
+AttitudeRawGet(&d);
+		actuatorDesired.Roll = d.gyros_filtered[0] * stabSettings.RollKd;
 		rollErrorLast = attitudeActual.Roll;
 		actuatorDesired.Roll = bound(actuatorDesired.Roll, -1.0, 1.0);
 //		rollErrorLast = rollError;
-
 		// Yaw stabilization control loop (only enabled on VTOL airframes)
 		if (( systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_VTOL )||( systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_HELICP))
 		{
