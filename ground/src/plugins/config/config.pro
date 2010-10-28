@@ -5,6 +5,10 @@ include(../../openpilotgcsplugin.pri)
 include(../../plugins/uavtalk/uavtalk.pri)
 include(../../plugins/coreplugin/coreplugin.pri)
 include(../../plugins/uavobjects/uavobjects.pri)
+include(../../libs/eigen/eigen.pri)
+
+INCLUDEPATH += ../../libs/eigen
+
 OTHER_FILES += Config.pluginspec
 HEADERS += configplugin.h \
     configgadgetconfiguration.h \
@@ -21,7 +25,9 @@ HEADERS += configplugin.h \
     mixercurvewidget.h \
     mixercurvepoint.h \
     mixercurveline.h \
-    configccpmwidget.h
+    configccpmwidget.h \
+    assertions.h \
+    calibration.h
 SOURCES += configplugin.cpp \
     configgadgetconfiguration.cpp \
     configgadgetwidget.cpp \
@@ -37,7 +43,9 @@ SOURCES += configplugin.cpp \
     mixercurvewidget.cpp \
     mixercurvepoint.cpp \
     mixercurveline.cpp \
-    configccpmwidget.cpp
+    configccpmwidget.cpp \
+    twostep.cpp \
+    legacy-calibration.cpp
 FORMS += settingswidget.ui \
     airframe.ui \
     telemetry.ui \
