@@ -1,0 +1,19 @@
+<xml>
+    <object name="AttitudeRaw" singleinstance="true" settings="false">
+        <description>The raw attitude sensor data from @ref AHRSCommsModule.  Not always updated.</description>
+        <field name="magnetometers_filtered" units="mGa" type="int16" elementnames="X,Y,Z"/>
+	<field name="magnetometers" units="raw" type="int16" elementnames="X,Y,Z"/>
+	<field name="gyros" units="raw" type="uint16" elementnames="X,Y,Z"/>
+	<field name="gyros_average" units="raw" type="float" elementnames="X,Y,Z"/>
+	<field name="gyros_integral" units="raw" type="int32" elementnames="X,Y,Z"/>
+        <field name="gyros_filtered" units="deg/s" type="float" elementnames="X,Y,Z"/>
+        <field name="gyros_ticks" units="cycles" type="uint32" elements="1"/>
+        <field name="gyrotemp" units="raw" type="uint16" elementnames="XY,Z"/>
+        <field name="accels" units="raw" type="uint16" elementnames="X,Y,Z"/>
+        <field name="accels_filtered" units="m/s" type="float" elementnames="X,Y,Z"/>
+        <access gcs="readwrite" flight="readwrite"/>
+        <telemetrygcs acked="false" updatemode="manual" period="0"/>
+        <telemetryflight acked="false" updatemode="periodic" period="1000"/>
+        <logging updatemode="never" period="0"/>
+    </object>
+</xml>
