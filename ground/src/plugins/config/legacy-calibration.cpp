@@ -31,6 +31,17 @@
  * The basic calibration algorithm initially used in OpenPilot. This is a basic
  * 6-point calibration that doesn't attempt to account for any of the white noise
  * in the sensors.
+ * The measurement equation is
+ * B_k = D^-1 * (A_k * H_k - b)
+ * Where B_k is the measurement of the field at time k
+ * 	D is the diagonal matrix of scale factors
+ * 	A_k is the attitude direction cosine matrix at time k
+ *  H_k is the reference field at the kth sample
+ *  b is the vector of scale factors.
+ *
+ * After computing the scale factor and bias, the optimized measurement is
+ * \tilde{B}_k = D * (B_k + b)
+ *
  * @param bias[out] The computed bias of the sensor
  * @param scale[out] The computed scale factor of the sensor
  * @param samples An array of sample data points.  Only the first 6 are

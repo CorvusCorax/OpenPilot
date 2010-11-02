@@ -28,6 +28,7 @@ HEADERS += configplugin.h \
     configccpmwidget.h \
     assertions.h \
     calibration.h
+
 SOURCES += configplugin.cpp \
     configgadgetconfiguration.cpp \
     configgadgetwidget.cpp \
@@ -45,7 +46,10 @@ SOURCES += configplugin.cpp \
     mixercurveline.cpp \
     configccpmwidget.cpp \
     twostep.cpp \
-    legacy-calibration.cpp
+    legacy-calibration.cpp \
+    gyro-calibration.cpp \
+    alignment-calibration.cpp
+
 FORMS += settingswidget.ui \
     airframe.ui \
     telemetry.ui \
