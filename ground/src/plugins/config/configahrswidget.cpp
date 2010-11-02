@@ -461,12 +461,12 @@ void ConfigAHRSWidget::savePositionData()
 void ConfigAHRSWidget::computeScaleBias()
 {
     UAVObject *home = dynamic_cast<UAVDataObject*>(getObjectManager()->getObject(QString("HomeLocation")));
-    // The home location is in units of nano Tesla.  Multiply by 1e-3 to get milli Gauss.
+    // The home location is in units of nano Tesla.  Multiply by 1e-2 to get milli Gauss.
     Vector3f localMagField;
     localMagField << home->getField("Be")->getValue(0).toDouble(),
 		home->getField("Be")->getValue(1).toDouble(),
 		home->getField("Be")->getValue(2).toDouble();
-    localMagField *= 1e-3;
+    localMagField *= 1e-2;
 
     // TODO: Load local gravity from HomeLocation
     float localGravity = 9.82f;
@@ -474,12 +474,12 @@ void ConfigAHRSWidget::computeScaleBias()
     // UAVObject *obj = dynamic_cast<UAVDataObject*>(getObjectManager()->getObject(QString("AHRSCalibration")));
     // UAVObjectField *field;
 
-    Vector3f referenceField = Vector3f::UnitZ()*localGravity;;
+    Vector3f referenceField = Vector3f::UnitZ()*localGravity;
     double noise = 0.04;
     Vector3f accelBias;
     Matrix3f accelScale;
     std::cout << "number of samples: " << n_positions << "\n";
-    twostep_bias_scale(accelBias, accelScale, mag_data, n_positions, referenceField, noise*noise);
+    twostep_bias_scale(accelBias, accelScale, accel_data, n_positions, referenceField, noise*noise);
     std::cout << "computed accel bias: " << accelBias.transpose()
 		<< "\ncomputed accel scale:\n" << accelScale + Matrix3f::Identity() << std::endl;
 
@@ -491,7 +491,7 @@ void ConfigAHRSWidget::computeScaleBias()
 
     Vector3f magBias;
     Matrix3f magScale;
-    referenceField = Vector3f::UnitZ()*500.0f;
+    referenceField = localMagField;
     noise = 4.0;
     twostep_bias_scale(magBias, magScale, mag_data, n_positions, referenceField, noise*noise);
     std::cout << "computed mag bias: " << magBias.transpose()
