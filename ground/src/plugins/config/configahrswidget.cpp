@@ -352,9 +352,9 @@ void ConfigAHRSWidget::attitudeRawUpdated(UAVObject * obj)
         disconnect(obj,SIGNAL(objectUpdated(UAVObject*)),this,SLOT(attitudeRawUpdated(UAVObject*)));
         m_ahrs->sixPointsSave->setEnabled(true);
 
-        accel_data[position] << (listMean(accel_accum_x) - 2048) / 32.0f,
-			(listMean(accel_accum_y) - 2048) / 32.0f,
-			(listMean(accel_accum_z) - 2048) / 32.0f;
+        accel_data[position] << listMean(accel_accum_x),
+			listMean(accel_accum_y),
+			listMean(accel_accum_z);
 
         mag_data[position] << listMean(mag_accum_x),
 			listMean(mag_accum_y),
@@ -491,9 +491,8 @@ void ConfigAHRSWidget::computeScaleBias()
 
     Vector3f magBias;
     Matrix3f magScale;
-    referenceField = localMagField;
     noise = 4.0;
-    twostep_bias_scale(magBias, magScale, mag_data, n_positions, referenceField, noise*noise);
+    twostep_bias_scale(magBias, magScale, mag_data, n_positions, localMagField, noise*noise);
     std::cout << "computed mag bias: " << magBias.transpose()
 		<< "\ncomputed mag scale:\n" << magScale + Matrix3f::Identity() << std::endl;
 
@@ -532,24 +531,26 @@ void ConfigAHRSWidget::sixPointCalibrationMode()
 
     // set accels to unity gain
     UAVObjectField *field = obj->getField(QString("accel_scale"));
-    field->setDouble(1,0);
-    field->setDouble(1,1);
-    field->setDouble(1,2);
+    field->setDouble(1.0 / 32, 0);
+    field->setDouble(1.0 / 32, 1);
+    field->setDouble(-1.0 / 32, 2);
 
     field = obj->getField(QString("accel_bias"));
-    field->setDouble(0,0);
-    field->setDouble(0,1);
-    field->setDouble(0,2);
+    field->setDouble(-2048.0/32, 0);
+    field->setDouble(-2048.0/32, 1);
+    field->setDouble(2048.0/32, 2);
 
+#if 0
     field = obj->getField(QString("gyro_bias"));
     field->setDouble(0,0);
     field->setDouble(0,1);
     field->setDouble(0,2);
+#endif
 
     field = obj->getField(QString("mag_scale"));
-    field->setDouble(1,0);
-    field->setDouble(1,1);
-    field->setDouble(1,2);
+    field->setDouble(-1,0);
+    field->setDouble(-1,1);
+    field->setDouble(-1,2);
 
     field = obj->getField(QString("mag_bias"));
     field->setDouble(0,0);
