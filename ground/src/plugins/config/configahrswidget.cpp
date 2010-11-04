@@ -457,11 +457,40 @@ void ConfigAHRSWidget::savePositionData()
 }
 
 //*****************************************************************
+namespace {
+void
+updateScaleFactors(UAVObjectField *scale,
+		UAVObjectField *bias,
+		const Matrix3f& updateScale,
+		const Vector3f& updateBias)
+{
+	// Compose a 4x4 affine transformation matrix composed of the scale factor
+	// and bias.
+	Matrix4f calibration;
+    calibration << (Vector3f() << scale->getDouble(0), scale->getDouble(1), scale->getDouble(2)).finished().asDiagonal(),
+		(Vector3f() << bias->getDouble(0), bias->getDouble(1), bias->getDouble(2)).finished(),
+		Vector4f::UnitW().transpose();
+
+    Matrix4f update;
+    update << updateScale, updateBias, Vector4f::UnitW().transpose();
+
+    calibration = update * calibration;
+    // TODO: Update the three off-axis calibration scalars, too.
+    scale->setDouble(calibration(0,0), 0);
+    scale->setDouble(calibration(1,1), 1);
+    scale->setDouble(calibration(2,2), 2);
+
+    bias->setDouble(calibration(0,3), 0);
+    bias->setDouble(calibration(1,3), 1);
+    bias->setDouble(calibration(2,3), 2);
+}
+} // !namespace (anon)
 
 void ConfigAHRSWidget::computeScaleBias()
 {
     UAVObject *home = dynamic_cast<UAVDataObject*>(getObjectManager()->getObject(QString("HomeLocation")));
     // The home location is in units of nano Tesla.  Multiply by 1e-2 to get milli Gauss.
+    // TODO: Convert HomeLocation to use units of milliGauss instead.
     Vector3f localMagField;
     localMagField << home->getField("Be")->getValue(0).toDouble(),
 		home->getField("Be")->getValue(1).toDouble(),
@@ -471,21 +500,21 @@ void ConfigAHRSWidget::computeScaleBias()
     // TODO: Load local gravity from HomeLocation
     float localGravity = 9.82f;
 
-    // UAVObject *obj = dynamic_cast<UAVDataObject*>(getObjectManager()->getObject(QString("AHRSCalibration")));
-    // UAVObjectField *field;
-
     Vector3f referenceField = Vector3f::UnitZ()*localGravity;
     double noise = 0.04;
     Vector3f accelBias;
     Matrix3f accelScale;
     std::cout << "number of samples: " << n_positions << "\n";
     twostep_bias_scale(accelBias, accelScale, accel_data, n_positions, referenceField, noise*noise);
+    // Twostep computes an offset from the identity scalar, and a negative bias offset
+    accelScale += Matrix3f::Identity();
+    accelBias = -accelBias;
     std::cout << "computed accel bias: " << accelBias.transpose()
-		<< "\ncomputed accel scale:\n" << accelScale + Matrix3f::Identity() << std::endl;
+		<< "\ncomputed accel scale:\n" << accelScale<< std::endl;
 
     // Apply the computed scale factor and bias to each sample
     for (size_t i = 0; i < n_positions; ++i) {
-    	accel_data[i] = (accelScale + Matrix3f::Identity()) * accel_data[i] - accelBias;
+    	accel_data[i] = accelScale * accel_data[i] + accelBias;
     }
 
 
@@ -493,12 +522,14 @@ void ConfigAHRSWidget::computeScaleBias()
     Matrix3f magScale;
     noise = 4.0;
     twostep_bias_scale(magBias, magScale, mag_data, n_positions, localMagField, noise*noise);
+    magScale += Matrix3f::Identity();
+    magBias = -magBias;
     std::cout << "computed mag bias: " << magBias.transpose()
-		<< "\ncomputed mag scale:\n" << magScale + Matrix3f::Identity() << std::endl;
+		<< "\ncomputed mag scale:\n" << magScale << std::endl;
 
     // Apply the computed scale factor and bias to each sample
     for (size_t i = 0; i < n_positions; ++i) {
-    	mag_data[i] = (magScale + Matrix3f::Identity()) * mag_data[i] - magBias;
+    	mag_data[i] = magScale * mag_data[i] + magBias;
     }
 
     // Calibrate gyro bias and acceleration sensitivity
@@ -506,7 +537,7 @@ void ConfigAHRSWidget::computeScaleBias()
     Vector3f gyroBias;
     gyroscope_calibration(gyroBias, accelSensitivity, gyro_data, accel_data, n_positions);
     std::cout << "gyro bias: " << gyroBias.transpose()
-		<< "gyro's acceleration sensitivity:\n" << accelSensitivity << std::endl;
+		<< "\ngyro's acceleration sensitivity:\n" << accelSensitivity << std::endl;
 
     // Calibrate alignment between the accelerometer and gyro, taking the accelerometer as the
     // reference.
@@ -515,7 +546,24 @@ void ConfigAHRSWidget::computeScaleBias()
 			mag_data, localMagField, n_positions);
     std::cout << "magnetometer rotation vector: " << magRotation.transpose() << std::endl;
 
-    // obj->updated();
+    // Update the calibration scalars
+    UAVObject *obj = dynamic_cast<UAVDataObject*>(getObjectManager()->getObject(QString("AHRSCalibration")));
+    updateScaleFactors(obj->getField(QString("accel_scale")),
+    		obj->getField(QString("accel_bias")),
+    		accelScale,
+    		accelBias);
+
+    updateScaleFactors(obj->getField(QString("mag_scale")),
+    		obj->getField(QString("mag_bias")),
+    		magScale,
+    		magBias);
+
+    updateScaleFactors(obj->getField(QString("gyro_scale")),
+    		obj->getField(QString("gyro_bias")),
+    		Matrix3f::Identity(),
+    		-gyroBias);
+
+    obj->updated();
 
     position = -1; //set to run again
     m_ahrs->sixPointCalibInstructions->append("Computed accel and mag scale and bias...");

@@ -21,3 +21,11 @@ validate that claim.
 
 Each calibration term is saved separately on the main board.  The AHRS will compute
 an internal scaling matrix and offset vector from the saved parameters.
+
+Branch status:
+	- 1) magnetometer has excellent orthogonality, but the accelerometer needs ortho calibration.
+	- 3) Not measurable: too much white noise to reliably observe this effect.
+	- 4) Misalignment is small, on the order of 1-2 degrees.  Probably need this to avoid
+		extra effects on the gyro's bias estimate.
+	- 5) may be a huge task.  The best designs are based on EKF's with extra calibration
+			states.  Defer it.
