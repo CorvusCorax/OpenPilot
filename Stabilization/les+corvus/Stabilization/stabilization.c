@@ -35,6 +35,7 @@
 #include "stabilization.h"
 #include "stabilizationsettings.h"
 #include "actuatordesired.h"
+#include "ratedesired.h"
 #include "attitudedesired.h"
 #include "attitudeactual.h"
 #include "attituderaw.h"
@@ -42,12 +43,11 @@
 #include "systemsettings.h"
 #include "ahrssettings.h"
 
-
 // Private constants
 #define MAX_QUEUE_SIZE 2
 #define STACK_SIZE configMINIMAL_STACK_SIZE
 #define TASK_PRIORITY (tskIDLE_PRIORITY+4)
-#define FAILSAFE_TIMEOUT_MS 100
+#define FAILSAFE_TIMEOUT_MS 30
 #define DEG2RAD ( M_PI / 180.0 )
 
 
@@ -72,7 +72,6 @@ enum {PID_RATE_ROLL, PID_RATE_PITCH, PID_RATE_YAW, PID_ROLL, PID_PITCH, PID_YAW,
 
 enum {ROLL,PITCH,YAW,MAX_AXES};
 
-
 // Private types
 typedef struct {
 	float p;
@@ -83,14 +82,12 @@ typedef struct {
 	float lastErr;
 } pid_type;
 
-
 // Private variables
 static xTaskHandle taskHandle;
 static StabilizationSettingsData settings;
 static xQueueHandle queue;
 float dT = 1;
 pid_type pids[PID_MAX];
-
 
 // Private functions
 static void stabilizationTask(void* parameters);
@@ -101,6 +98,8 @@ static void SettingsUpdatedCb(UAVObjEvent * ev);
 static void calcDifference(float * values, float * reference, const uint8_t angular);
 static void translateValues(float * values, float * reference);
 
+// Global updated variable
+volatile uint8_t stabilization_updated;
 
 /**
  * Module initialization
@@ -114,7 +113,7 @@ int32_t StabilizationInitialize()
 
 	// Listen for updates.
 	AttitudeActualConnectQueue(queue);
-	AttitudeRawConnectQueue(queue);
+	//AttitudeRawConnectQueue(queue);
 
 	StabilizationSettingsConnectCallback(SettingsUpdatedCb);
 	SettingsUpdatedCb(StabilizationSettingsHandle());
@@ -131,12 +130,14 @@ int32_t StabilizationInitialize()
 static void stabilizationTask(void* parameters)
 {
 	portTickType lastSysTime;
+	portTickType lastSleepSysTime;
 	portTickType thisSysTime;
 	UAVObjEvent ev;
 
 
 	ActuatorDesiredData actuatorDesired;
 	AttitudeDesiredData attitudeDesired;
+	RateDesiredData rateDesired;
 	AttitudeActualData attitudeActual;
 	AttitudeRawData attitudeRaw;
 	SystemSettingsData systemSettings;
@@ -146,6 +147,7 @@ static void stabilizationTask(void* parameters)
 
 	// Main task loop
 	lastSysTime = xTaskGetTickCount();
+	lastSleepSysTime = lastSysTime;
 	ZeroPids();
 	while(1) {
 		// Wait until the ActuatorDesired object is updated, if a timeout then go to failsafe
@@ -153,6 +155,8 @@ static void stabilizationTask(void* parameters)
 		{
 			AlarmsSet(SYSTEMALARMS_ALARM_STABILIZATION,SYSTEMALARMS_ALARM_WARNING);
 		}
+
+		stabilisation_updated = 1;
 
 		// Check how long since last update
 		thisSysTime = xTaskGetTickCount();
@@ -164,6 +168,7 @@ static void stabilizationTask(void* parameters)
 		AttitudeDesiredGet(&attitudeDesired);
 		AttitudeActualGet(&attitudeActual);
 		AttitudeRawGet(&attitudeRaw);
+		RateDesiredGet(&rateDesired);
 		SystemSettingsGet(&systemSettings);
 
 
@@ -171,6 +176,7 @@ static void stabilizationTask(void* parameters)
 		float *attitudeDesiredAxis = &attitudeDesired.Roll;
 		float *attitudeActualAxis = &attitudeActual.Roll;
 		float *actuatorDesiredAxis = &actuatorDesired.Roll;
+		float *rateDesiredAxis = &rateDesired.Roll;
 
 		// calculate attitude errors
 		calcDifference( attitudeDesiredAxis, attitudeActualAxis, 1);
@@ -181,41 +187,41 @@ static void stabilizationTask(void* parameters)
 #endif
 
 		//Calculate desired rate
-		float rates[MAX_AXES]= {0,0,0};
 		for(int8_t ct=0; ct< MAX_AXES; ct++)
 		{
 			switch(manualControl.StabilizationSettings[ct])
 			{
 			case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_RATE:
-				rates[ct] = manualAxis[ct] * settings.ManualRate[ct];
+				rateDesiredAxis[ct] = manualAxis[ct] * settings.ManualRate[ct];
 				break;
 
 			case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_ATTITUDE:
-				rates[ct] = ApplyPid(&pids[PID_ROLL + ct],  attitudeDesiredAxis[ct]);
+				rateDesiredAxis[ct] = ApplyPid(&pids[PID_ROLL + ct],  attitudeDesiredAxis[ct]);
 				break;
 			}
-			if(fabs(rates[ct]) > settings.MaximumRate[ct])
+			if(fabs(rateDesiredAxis[ct]) > settings.MaximumRate[ct])
 			{
-				if(rates[ct] > 0)
+				if(rateDesiredAxis[ct] > 0)
 				{
-					rates[ct] = settings.MaximumRate[ct];
+					rateDesiredAxis[ct] = settings.MaximumRate[ct];
 				}else
 				{
-					rates[ct] = -settings.MaximumRate[ct];
+					rateDesiredAxis[ct] = -settings.MaximumRate[ct];
 				}
 
 			}
 		}
 
 		uint8_t shouldUpdate = 0;
+		RateDesiredSet(&rateDesired);
 		ActuatorDesiredGet(&actuatorDesired);
 
 		// calculate rate errors
-		calcDifference( rates, attitudeRaw.gyros_filtered, 0);
+		calcDifference( rateDesiredAxis, attitudeRaw.gyros_filtered, 0);
 
 #if TRANSLATE_COORDS == TRANSLATE_RATES
 		//Translate rate errors to local reference frame.
-		translateValues(rates, attitudeActualAxis);
+		translateValues(rateDesiredAxis, attitudeActualAxis);
 #endif
 
 		//Calculate desired command
@@ -226,7 +232,7 @@ static void stabilizationTask(void* parameters)
 			case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_RATE:
 			case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_ATTITUDE:
 				{
-					float command = ApplyPid(&pids[PID_RATE_ROLL + ct],  rates[ct]);
+					float command = ApplyPid(&pids[PID_RATE_ROLL + ct],  rateDesiredAxis[ct]);
 					actuatorDesiredAxis[ct] = bound(command);
 					shouldUpdate = 1;
 					break;
@@ -262,6 +268,9 @@ static void stabilizationTask(void* parameters)
 
 		// Clear alarms
 		AlarmsClear(SYSTEMALARMS_ALARM_STABILIZATION);
+
+		/* Wait for the next update interval */
+		vTaskDelayUntil(&lastSleepSysTime, settings.UpdatePeriod / portTICK_RATE_MS);
 	}
 }
 
