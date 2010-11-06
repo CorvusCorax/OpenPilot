@@ -156,7 +156,7 @@ static void stabilizationTask(void* parameters)
 			AlarmsSet(SYSTEMALARMS_ALARM_STABILIZATION,SYSTEMALARMS_ALARM_WARNING);
 		}
 
-		stabilisation_updated = 1;
+		stabilization_updated = 1;
 
 		// Check how long since last update
 		thisSysTime = xTaskGetTickCount();
