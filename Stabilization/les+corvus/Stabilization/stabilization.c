@@ -181,24 +181,30 @@ static void stabilizationTask(void* parameters)
 		// calculate attitude errors
 		calcDifference( attitudeDesiredAxis, attitudeActualAxis, 1);
 
+		//Zero errors we are not using
+		for (int8_t ct=0; ct< MAX_AXES; ct++)
+		{
+			if ( manualControl.StabilizationSettings[ct] != MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_ATTITUDE )
+			{
+				attitudeDesiredAxis[ct] = 0;
+			}
+			if ( manualControl.StabilizationSettings[ct] != MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_RATE )
+			{
+				manualAxis[ct] = 0;
+			}
+		}
+
 #if TRANSLATE_COORDS == TRANSLATE_ATTITUDE
 		//Translate Attitude to local reference frame.
 		translateValues(attitudeDesiredAxis, attitudeActualAxis);
+		translateValues(manualAxis, attitudeActualAxis);
 #endif
 
 		//Calculate desired rate
 		for(int8_t ct=0; ct< MAX_AXES; ct++)
 		{
-			switch(manualControl.StabilizationSettings[ct])
-			{
-			case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_RATE:
-				rateDesiredAxis[ct] = manualAxis[ct] * settings.ManualRate[ct];
-				break;
-
-			case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_ATTITUDE:
-				rateDesiredAxis[ct] = ApplyPid(&pids[PID_ROLL + ct],  attitudeDesiredAxis[ct]);
-				break;
-			}
+			rateDesiredAxis[ct] = manualAxis[ct] * settings.ManualRate[ct]
+								+ ApplyPid(&pids[PID_ROLL + ct],  attitudeDesiredAxis[ct]);
 			if(fabs(rateDesiredAxis[ct]) > settings.MaximumRate[ct])
 			{
 				if(rateDesiredAxis[ct] > 0)
@@ -208,7 +214,6 @@ static void stabilizationTask(void* parameters)
 				{
 					rateDesiredAxis[ct] = -settings.MaximumRate[ct];
 				}
-
 			}
 		}
 
@@ -280,6 +285,7 @@ float ApplyPid(pid_type * pid, const float err)
 	float diff = (err - pid->lastErr);
 	pid->lastErr = err;
 	pid->iAccumulator += err * pid->i * dT;
+	if (isnan(pid->iAccumulator)) pid->iAccumulator = 0;
 	if(fabs(pid->iAccumulator) > pid->iLim) {
 		if(pid->iAccumulator >0) {
 			pid->iAccumulator = pid->iLim;
@@ -310,6 +316,7 @@ static float bound(float val)
 	} else if(val > 1) {
 		val = 1;
 	}
+	if (isnan(val)) return 0;
 	return val;
 }
 
@@ -351,7 +358,7 @@ static void translateValues(float * values, float * reference)
 	tmp[PITCH] = cos( DEG2RAD * reference[ROLL] ) * values[PITCH]
 			+ sin( DEG2RAD * reference[ROLL] ) * values[YAW];
 	tmp[YAW]   = cos( DEG2RAD * reference[ROLL] ) * values[YAW]
-			+ sin( DEG2RAD * reference[ROLL] ) * values[PITCH];
+			- sin( DEG2RAD * reference[ROLL] ) * values[PITCH];
 	values[PITCH] = tmp[PITCH];
 	values[YAW]   = tmp[YAW];
 
