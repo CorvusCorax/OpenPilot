@@ -52,20 +52,18 @@
 
 
 // Stabilizisation variant
-enum {TRANSLATE_NONE, TRANSLATE_ATTITUDE, TRANSLATE_RATES, TRANSLATE_ACTUATORS};
-#define TRANSLATE_COORDS TRANSLATE_ATTITUDE
-// TRANSLATE_NONE      <-- no coordinate translation - old behaviour - no rotation
-// TRANSLATE_ATTITUDE  <-- suggestion by corvus - rotate attitude error into local reference frame
-// TRANSLATE_RATES     <-- rotate rate error into local reference frame
-// TRANSLATE_ACTUATORS <-- rotate actuator demands into local reference frame
+#define TRANSLATE_COORDS 1
+// 0  <-- no coordinate translation - old behaviour - no rotation
+// 1  <-- suggestion by corvus - rotate attitude error into local reference frame
+// 2  <-- rotate rate error into local reference frame
+// 3  <-- rotate actuator demands into local reference frame
 // WARNING: MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_RATE
 //          will behave differently depending on whether and when translation takes place
 //          "none" and "attitude"   - rates will be stabilized in local reference frame
 //          "rates" and "actuators" - rates will be stabilized in global reference frame
 
-enum {METHOD_ROLL, METHOD_FULL};
-#define TRANSLATE_METHOD METHOD_ROLL
-// WARNING: experimental feature "full" is untested!
+#define TRANSLATE_METHOD 0
+// WARNING: experimental feature 1 (full) is untested!
 
 
 enum {PID_RATE_ROLL, PID_RATE_PITCH, PID_RATE_YAW, PID_ROLL, PID_PITCH, PID_YAW, PID_MAX};
@@ -194,7 +192,7 @@ static void stabilizationTask(void* parameters)
 			}
 		}
 
-#if TRANSLATE_COORDS == TRANSLATE_ATTITUDE
+#if TRANSLATE_COORDS == 1
 		//Translate Attitude to local reference frame.
 		translateValues(attitudeDesiredAxis, attitudeActualAxis);
 		translateValues(manualAxis, attitudeActualAxis);
@@ -224,9 +222,10 @@ static void stabilizationTask(void* parameters)
 		// calculate rate errors
 		calcDifference( rateDesiredAxis, attitudeRaw.gyros_filtered, 0);
 
-#if TRANSLATE_COORDS == TRANSLATE_RATES
+#if TRANSLATE_COORDS == 2
 		//Translate rate errors to local reference frame.
 		translateValues(rateDesiredAxis, attitudeActualAxis);
+		#warning this is untested
 #endif
 
 		//Calculate desired command
@@ -245,9 +244,10 @@ static void stabilizationTask(void* parameters)
 			}
 		}
 
-#if TRANSLATE_COORDS == TRANSLATE_ACTUATORS
+#if TRANSLATE_COORDS == 3
 		//Translate Actuator settings to local reference frame.
 		translateValues(actuatorDesiredAxis,attitudeActualAxis);
+		#warning this is untested
 #endif
 
 		// Save dT
@@ -345,13 +345,14 @@ static void translateValues(float * values, float * reference)
 
 	float tmp[MAX_AXES];
 
-#if TRANSLATE_METHOD == METHOD_FULL && TRANSLATE_COORDS == TRANSLATE_ATTITUDE
+#if TRANSLATE_METHOD == 1 && TRANSLATE_COORDS == 1
 	// UNTESTED!!! (and also likely unnecessary since neglectible for small values)
 	// adjust PITCH to corect the (PITCH) difference between a YAW rotation around the
 	// vertical axis and a YAW rotation around the local vertical axis
 	// WARNING!!! This only makes sense if values[YAW] is an angle.
 	// Therefore it cannot work for rates and/or actuatorDemands
 	values[PITCH] = values[PITCH] + ( reference[PITCH] - cos( DEG2RAD * values[YAW] ) * reference[PITCH] );
+	#warning this is untested
 #endif
 
 	// traditional translation: rotate YAW and PITCH by roll
