@@ -92,9 +92,7 @@ static float eastErrorLast = 0;
 static float downIntegral = 0;
 static float downErrorLast = 0;
 static float speedIntegral = 0;
-static float speedErrorLast = 0;
 static float headingIntegral = 0;
-static float headingErrorLast = 0;
 
 /**
  * Module thread, should not return.
@@ -134,9 +132,7 @@ static void guidanceTask(void *parameters)
 			downIntegral = 0;
 			downErrorLast = 0;
 			speedIntegral = 0;
-			speedErrorLast = 0;
 			headingIntegral = 0;
-			headingErrorLast = 0;
 		}			
 		vTaskDelayUntil(&lastSysTime, guidanceSettings.VelUpdatePeriod / portTICK_RATE_MS);
 	}
@@ -208,18 +204,18 @@ static void updatePlaneDesiredAttitude()
 	float headingDesired = atan2f(velocityDesired.East, velocityDesired.North) * RAD2DEG;
 	float speedDesired = bound(sqrt(pow(velocityDesired.East, 2) + pow(velocityDesired.North, 2) + pow(velocityDesired.Down, 2)),
 							guidanceSettings.MinAirspeed, guidanceSettings.MaxGroundspeed);
-	float energyDesired =  pow(speedDesired,2) - velocityDesired.Down / guidanceSettings.VertVelocityP;
+	float energyDesired =  pow((speedDesired/100),2) - velocityDesired.Down / guidanceSettings.VertVelocityP;
 	float headingActual = atan2f(velocityActual.East, velocityActual.North) * RAD2DEG;
 	float speedActual = sqrt(pow(velocityActual.East, 2) + pow(velocityActual.North, 2) + pow(velocityActual.Down, 2));
-	float energyActual =  pow(speedActual,2);
+	float energyActual =  pow((speedActual/100),2);
 
 	// desired roll angle is speed independent and proportional to heading error
 	float headingError =  headingDesired - headingActual;
 	if (headingError>180.) headingError-=360.;
 	if (headingError<-180.) headingError+=360.;
 	headingIntegral =	bound(headingIntegral + headingError * guidanceSettings.VelPIDUpdatePeriod, 
-				  -guidanceSettings.MaxRollIntegral,
-				  guidanceSettings.MaxRollIntegral);
+				  -guidanceSettings.MaxHeadingIntegral,
+				  guidanceSettings.MaxHeadingIntegral);
 	if (isnan(headingIntegral)) headingIntegral = 0;
 	attitudeDesired.Roll = bound( 
 				bound( guidanceSettings.HeadingP * headingError + headingIntegral * guidanceSettings.HeadingI,
@@ -229,16 +225,21 @@ static void updatePlaneDesiredAttitude()
 	// but desired yaw rate is dependent on both roll and speed (formula for "smooth" curve)
 	#define RAD2DEG (180./M_PI)
 	#define GEE (9.81*100.)
-	rateDesired.Yaw = RAD2DEG * tanf(attitudeDesired.Roll / RAD2DEG) * GEE / speedActual;
+	if (speedActual>1) {
+        rateDesired.Yaw = RAD2DEG * tanf(attitudeDesired.Roll / RAD2DEG) * GEE / speedActual;
+    } else {
+        rateDesired.Yaw = 0;
+    }
+    printf("heading: %f desired: %f error: %f roll: %f° yawrate: %f °/s\n",headingActual,headingDesired,headingError,attitudeDesired.Roll,rateDesired.Yaw);
 
-	// pitch is dependent on speed alone - PI loop:
+	// pitch is dependent on speed alone - PI loop - note the minus sign when assigning pitch! (negative pitches increase speed):
 	float speedError = speedDesired - speedActual;
 	speedIntegral =	bound(speedIntegral + speedError * guidanceSettings.VelPIDUpdatePeriod, 
-				  -guidanceSettings.MaxPitchIntegral,
-				  guidanceSettings.MaxPitchIntegral);
+				  -guidanceSettings.MaxVelIntegral,
+				  guidanceSettings.MaxVelIntegral);
 	if (isnan(speedIntegral)) speedIntegral = 0;
-	speedErrorLast = speedError;
-	attitudeDesired.Pitch = bound(speedError * guidanceSettings.SpeedP + speedIntegral * guidanceSettings.SpeedI, -stabSettings.PitchMax, stabSettings.PitchMax);
+	attitudeDesired.Pitch = - bound(speedError * guidanceSettings.VelP + speedIntegral * guidanceSettings.VelI, -stabSettings.PitchMax, stabSettings.PitchMax);
+    printf(" speed: %f desired: %f error: %f pitch:%f°\n",speedActual,speedDesired,speedError,attitudeDesired.Pitch);
 
 	// throttle is dependent on flight energy:
 	float downError = energyDesired - energyActual;
@@ -249,6 +250,7 @@ static void updatePlaneDesiredAttitude()
 	downErrorLast = downError;
 	attitudeDesired.Throttle = bound(downError * guidanceSettings.DownP + downIntegral * guidanceSettings.DownI,
 					0, 1);
+    printf(" energy: %f desired: %f error: %f throttle: %f\n",energyActual,energyDesired,downError,attitudeDesired.Throttle);
 	
 	AttitudeDesiredSet(&attitudeDesired);
 	RateDesiredSet(&rateDesired);
