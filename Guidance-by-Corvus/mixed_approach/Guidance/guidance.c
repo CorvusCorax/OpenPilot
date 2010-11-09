@@ -115,16 +115,16 @@ static void guidanceTask(void *parameters)
 		GuidanceSettingsGet(&guidanceSettings);
 
 		if ((manualControl.FlightMode == MANUALCONTROLCOMMAND_FLIGHTMODE_AUTO)) {
-            updateVtolDesiredVelocity();
-            switch (systemSettings.AirframeType) {
-            case (SYSTEMSETTINGS_AIRFRAMETYPE_VTOL):
-		    case (SYSTEMSETTINGS_AIRFRAMETYPE_QUADP):
-		    case (SYSTEMSETTINGS_AIRFRAMETYPE_QUADX):
-    			updateVtolDesiredAttitude();
-                break;
-            default:
-    			updatePlaneDesiredAttitude();
-            }
+			updateVtolDesiredVelocity();
+			switch (systemSettings.AirframeType) {
+			case (SYSTEMSETTINGS_AIRFRAMETYPE_VTOL):
+			case (SYSTEMSETTINGS_AIRFRAMETYPE_QUADP):
+			case (SYSTEMSETTINGS_AIRFRAMETYPE_QUADX):
+				updateVtolDesiredAttitude();
+				break;
+			default:
+				updatePlaneDesiredAttitude();
+			}
 		} else {
 			// Be cleaner and get rid of global variables
 			northIntegral = 0;
@@ -167,8 +167,8 @@ void updateVtolDesiredVelocity()
 	
 	float dDown = positionDesired.Down - positionActual.Down;
 	velocityDesired.Down = bound(guidanceSettings.VertVelocityP * dDown,
-				     -guidanceSettings.MaxVerticalSpeed, 
-				     guidanceSettings.MaxVerticalSpeed);
+					 -guidanceSettings.MaxVerticalSpeed, 
+					 guidanceSettings.MaxVerticalSpeed);
 	
 	VelocityDesiredSet(&velocityDesired);	
 }
@@ -204,52 +204,52 @@ static void updatePlaneDesiredAttitude()
 	AttitudeActualGet(&attitudeActual);
 	StabilizationSettingsGet(&stabSettings);
    
-	float headingDesired = atan2f(velocityDesired.East, velocityDesired.North);
-    float speedDesired = bound(sqrt(pow(velocityDesired.East, 2) + pow(velocityDesired.North, 2) + pow(velocityDesired.Down, 2)),
-                            guidanceSettings.MinAirspeed, guidanceSettings.MaxGroundspeed);
-    float energyDesired =  pow(speedDesired,2) - velocityDesired.Down / guidanceSettings.VertVelocityP;
-	float headingActual = atan2f(velocityActual.East, velocityActual.North);
-    float speedActual = sqrt(pow(velocityActual.East, 2) + pow(velocityActual.North, 2) + pow(velocityActual.Down, 2));
-    float energyActual =  pow(speedActual,2);
+	#define RAD2DEG (180./M_PI)
+	float headingDesired = atan2f(velocityDesired.East, velocityDesired.North) * RAD2DEG;
+	float speedDesired = bound(sqrt(pow(velocityDesired.East, 2) + pow(velocityDesired.North, 2) + pow(velocityDesired.Down, 2)),
+							guidanceSettings.MinAirspeed, guidanceSettings.MaxGroundspeed);
+	float energyDesired =  pow(speedDesired,2) - velocityDesired.Down / guidanceSettings.VertVelocityP;
+	float headingActual = atan2f(velocityActual.East, velocityActual.North) * RAD2DEG;
+	float speedActual = sqrt(pow(velocityActual.East, 2) + pow(velocityActual.North, 2) + pow(velocityActual.Down, 2));
+	float energyActual =  pow(speedActual,2);
 
-    // desired roll angle is speed independent and proportional to heading error
-    float headingError =  headingDesired - headingActual;
-    if (headingError>180.) headingError-=360.;
-    if (headingError<-180.) headingError+=360.;
+	// desired roll angle is speed independent and proportional to heading error
+	float headingError =  headingDesired - headingActual;
+	if (headingError>180.) headingError-=360.;
+	if (headingError<-180.) headingError+=360.;
 	headingIntegral =	bound(headingIntegral + headingError * guidanceSettings.VelPIDUpdatePeriod, 
-			      -guidanceSettings.MaxRollIntegral,
-			      guidanceSettings.MaxRollIntegral);
-    if (isnan(headingIntegral)) headingIntegral = 0;
-    attitudeDesired.Roll = bound( 
-                            bound( guidanceSettings.HeadingP * headingError + headingIntegral * guidanceSettings.HeadingI,
-                                    -stabSettings.RollMax, stabSettings.RollMax ),
-                            -80, 80 );
-    
-    // but desired yaw rate is dependent on roll and speed (formula for "smooth" curve)
-    #define RAD2DEG (180./M_PI)
-    #define GEE (9.81*100.)
-    rateDesired.Yaw = RAD2DEG * tanf(attitudeDesired.Roll) * GEE / speedActual;
+				  -guidanceSettings.MaxRollIntegral,
+				  guidanceSettings.MaxRollIntegral);
+	if (isnan(headingIntegral)) headingIntegral = 0;
+	attitudeDesired.Roll = bound( 
+				bound( guidanceSettings.HeadingP * headingError + headingIntegral * guidanceSettings.HeadingI,
+				-stabSettings.RollMax, stabSettings.RollMax ),
+			-80, 80 );
+	
+	// but desired yaw rate is dependent on both roll and speed (formula for "smooth" curve)
+	#define RAD2DEG (180./M_PI)
+	#define GEE (9.81*100.)
+	rateDesired.Yaw = RAD2DEG * tanf(attitudeDesired.Roll / RAD2DEG) * GEE / speedActual;
 
-    // pitch is dependent on speed alone - PI loop:
-    float speedError = speedDesired - speedActual;
-
+	// pitch is dependent on speed alone - PI loop:
+	float speedError = speedDesired - speedActual;
 	speedIntegral =	bound(speedIntegral + speedError * guidanceSettings.VelPIDUpdatePeriod, 
-			      -guidanceSettings.MaxPitchIntegral,
-			      guidanceSettings.MaxPitchIntegral);
-    if (isnan(speedIntegral)) speedIntegral = 0;
+				  -guidanceSettings.MaxPitchIntegral,
+				  guidanceSettings.MaxPitchIntegral);
+	if (isnan(speedIntegral)) speedIntegral = 0;
 	speedErrorLast = speedError;
 	attitudeDesired.Pitch = bound(speedError * guidanceSettings.SpeedP + speedIntegral * guidanceSettings.SpeedI, -stabSettings.PitchMax, stabSettings.PitchMax);
 
-    // throttle is dependent on flight energy:
+	// throttle is dependent on flight energy:
 	float downError = energyDesired - energyActual;
 	downIntegral =	bound(downIntegral + downError * guidanceSettings.VelPIDUpdatePeriod, 
-			      -guidanceSettings.MaxThrottleIntegral,
-			      guidanceSettings.MaxThrottleIntegral);
-    if (isnan(downIntegral)) downIntegral = 0;
+				  -guidanceSettings.MaxThrottleIntegral,
+				  guidanceSettings.MaxThrottleIntegral);
+	if (isnan(downIntegral)) downIntegral = 0;
 	downErrorLast = downError;
 	attitudeDesired.Throttle = bound(downError * guidanceSettings.DownP + downIntegral * guidanceSettings.DownI,
-                                0, 1);
-    
+					0, 1);
+	
 	AttitudeDesiredSet(&attitudeDesired);
 	RateDesiredSet(&rateDesired);
 }
@@ -302,8 +302,8 @@ static void updateVtolDesiredAttitude()
 	northDerivative = (northError - northErrorLast) / dT;
 	northIntegral =
 	bound(northIntegral + northError * dT, -guidanceSettings.MaxVelIntegral,
-	      guidanceSettings.MaxVelIntegral);
-    if (isnan(northIntegral)) northIntegral = 0;
+		  guidanceSettings.MaxVelIntegral);
+	if (isnan(northIntegral)) northIntegral = 0;
 	northErrorLast = northError;
 	northCommand =
 	northError * guidanceSettings.VelP + northDerivative * guidanceSettings.VelD + northIntegral * guidanceSettings.VelI;
@@ -311,27 +311,27 @@ static void updateVtolDesiredAttitude()
 	eastError = velocityDesired.East - velocityActual.East;
 	eastDerivative = (eastError - eastErrorLast) / dT;
 	eastIntegral = bound(eastIntegral + eastError * dT, 
-			     -guidanceSettings.MaxVelIntegral,
-			     guidanceSettings.MaxVelIntegral);
-    if (isnan(eastIntegral)) eastIntegral = 0;
+				 -guidanceSettings.MaxVelIntegral,
+				 guidanceSettings.MaxVelIntegral);
+	if (isnan(eastIntegral)) eastIntegral = 0;
 	eastErrorLast = eastError;
 	eastCommand = eastError * guidanceSettings.VelP + eastDerivative * guidanceSettings.VelD + eastIntegral * guidanceSettings.VelI;
 	
 	// Project the north and east command signals into the pitch and roll based on yaw.  For this to behave well the
 	// craft should move similarly for 5 deg roll versus 5 deg pitch
 	attitudeDesired.Pitch = bound(-northCommand * cosf(attitudeActual.Yaw * M_PI / 180) + 
-				      eastCommand * sinf(attitudeActual.Yaw * M_PI / 180),
-				      -stabSettings.PitchMax, stabSettings.PitchMax);
+					  eastCommand * sinf(attitudeActual.Yaw * M_PI / 180),
+					  -stabSettings.PitchMax, stabSettings.PitchMax);
 	attitudeDesired.Roll = bound(-northCommand * sinf(attitudeActual.Yaw * M_PI / 180) + 
-				     eastCommand * cosf(attitudeActual.Yaw * M_PI / 180),
-				     -stabSettings.RollMax, stabSettings.RollMax);
+					 eastCommand * cosf(attitudeActual.Yaw * M_PI / 180),
+					 -stabSettings.RollMax, stabSettings.RollMax);
 	
 	downError = velocityDesired.Down - velocityActual.Down;
 	downDerivative = (downError - downErrorLast) / guidanceSettings.VelPIDUpdatePeriod;
 	downIntegral =	bound(downIntegral + downError * guidanceSettings.VelPIDUpdatePeriod, 
-			      -guidanceSettings.MaxThrottleIntegral,
-			      guidanceSettings.MaxThrottleIntegral);
-    if (isnan(downIntegral)) downIntegral = 0;
+				  -guidanceSettings.MaxThrottleIntegral,
+				  guidanceSettings.MaxThrottleIntegral);
+	if (isnan(downIntegral)) downIntegral = 0;
 	downErrorLast = downError;
 	attitudeDesired.Throttle = bound(downError * guidanceSettings.DownP + downDerivative * guidanceSettings.DownD +
 					 downIntegral * guidanceSettings.DownI, 0, 1);
