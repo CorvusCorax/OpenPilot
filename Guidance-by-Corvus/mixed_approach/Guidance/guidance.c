@@ -204,7 +204,7 @@ static void updatePlaneDesiredAttitude()
 	float headingDesired = atan2f(velocityDesired.East, velocityDesired.North) * RAD2DEG;
 	float speedDesired = bound(sqrt(pow(velocityDesired.East, 2) + pow(velocityDesired.North, 2) + pow(velocityDesired.Down, 2)),
 							guidanceSettings.MinAirspeed, guidanceSettings.MaxGroundspeed);
-	float energyDesired =  pow((speedDesired/100),2) - velocityDesired.Down / guidanceSettings.VertVelocityP;
+	float energyDesired =  pow((speedDesired/100),2) - (velocityDesired.Down/100) / guidanceSettings.VertVelocityP;
 	float headingActual = atan2f(velocityActual.East, velocityActual.North) * RAD2DEG;
 	float speedActual = sqrt(pow(velocityActual.East, 2) + pow(velocityActual.North, 2) + pow(velocityActual.Down, 2));
 	float energyActual =  pow((speedActual/100),2);
@@ -240,6 +240,7 @@ static void updatePlaneDesiredAttitude()
 	if (isnan(speedIntegral)) speedIntegral = 0;
 	attitudeDesired.Pitch = - bound(speedError * guidanceSettings.VelP + speedIntegral * guidanceSettings.VelI, -stabSettings.PitchMax, stabSettings.PitchMax);
     printf(" speed: %f desired: %f error: %f pitch:%f°\n",speedActual,speedDesired,speedError,attitudeDesired.Pitch);
+    printf(" integral is: %f term is %f, prop term is %f\n",speedIntegral,speedIntegral * guidanceSettings.VelI,speedError * guidanceSettings.VelP);
 
 	// throttle is dependent on flight energy:
 	float downError = energyDesired - energyActual;
@@ -248,10 +249,10 @@ static void updatePlaneDesiredAttitude()
 				  guidanceSettings.MaxThrottleIntegral);
 	if (isnan(downIntegral)) downIntegral = 0;
 	downErrorLast = downError;
-	attitudeDesired.Throttle = bound(downError * guidanceSettings.DownP + downIntegral * guidanceSettings.DownI,
-					0, 1);
+	attitudeDesired.Throttle = bound(0.5 + (downError * guidanceSettings.DownP + downIntegral * guidanceSettings.DownI),0, 1);
     printf(" energy: %f desired: %f error: %f throttle: %f\n",energyActual,energyDesired,downError,attitudeDesired.Throttle);
-	
+    printf(" integral is: %f term is %f, prop term is %f\n",downIntegral,downIntegral * guidanceSettings.DownI,downError * guidanceSettings.DownP);
+	printf(" desired vertical velocity: %i\n",velocityDesired.Down);
 	AttitudeDesiredSet(&attitudeDesired);
 	RateDesiredSet(&rateDesired);
 }
