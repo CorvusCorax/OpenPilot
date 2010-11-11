@@ -50,22 +50,6 @@
 #define FAILSAFE_TIMEOUT_MS 30
 #define DEG2RAD ( M_PI / 180.0 )
 
-
-// Stabilizisation variant
-#define TRANSLATE_COORDS 1
-// 0  <-- no coordinate translation - old behaviour - no rotation
-// 1  <-- suggestion by corvus - rotate attitude error into local reference frame
-// 2  <-- rotate rate error into local reference frame
-// 3  <-- rotate actuator demands into local reference frame
-// WARNING: MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_RATE
-//          will behave differently depending on whether and when translation takes place
-//          "none" and "attitude"   - rates will be stabilized in local reference frame
-//          "rates" and "actuators" - rates will be stabilized in global reference frame
-
-#define TRANSLATE_METHOD 0
-// WARNING: experimental feature 1 (full) is untested!
-
-
 enum {PID_RATE_ROLL, PID_RATE_PITCH, PID_RATE_YAW, PID_ROLL, PID_PITCH, PID_YAW, PID_MAX};
 
 enum {ROLL,PITCH,YAW,MAX_AXES};
@@ -174,81 +158,73 @@ static void stabilizationTask(void* parameters)
 		float *attitudeActualAxis = &attitudeActual.Roll;
 		float *actuatorDesiredAxis = &actuatorDesired.Roll;
 		float *rateDesiredAxis = &rateDesired.Roll;
+		float localRate[3];
 
 		// calculate attitude errors
 		calcDifference( attitudeDesiredAxis, attitudeActualAxis, 1);
 
-		//Zero errors we are not using
+		//Zero axis errors we are not using
 		for (int8_t ct=0; ct< MAX_AXES; ct++)
 		{
-			if ( manualControl.StabilizationSettings[ct] != MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_ATTITUDE )
-			{
-				attitudeDesiredAxis[ct] = 0;
-			}
-			if ( manualControl.StabilizationSettings[ct] != MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_RATE )
-			{
-				rateDesiredAxis[ct] = 0;
+			switch (manualControl.StabilizationSettings[ct]) {
+				case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_ATTITUDE:   // attitude stabilization.
+					rateDesiredAxis[ct] = 0;                                // ignore rate demand
+					localRate[ct] = 0;                                      // reset translated rate demand
+					break;
+				case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_RATE:       // local rate stabilization.
+					localRate[ct] = rateDesiredAxis[ct];                    // set translated rate demand directly
+					rateDesiredAxis[ct] = 0;                                // disable rate translation
+					attitudeDesiredAxis[ct] = 0;                            // ignore attitude demand
+					break;
+				case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_MIXED:      // mixed mode (stunt mode)
+					localRate[ct] = rateDesiredAxis[ct];                    // set translated rate demand directly
+					rateDesiredAxis[ct] = 0;                                // disable rate translation
+					break;
+				case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_GLOBALRATE: // rate stabilization
+					attitudeDesiredAxis[ct] = 0;                            // ignore attitude demand
+					localRate[ct] = 0;                                      // reset translated rate demand
+					break;
 			}
 		}
 
-#if TRANSLATE_COORDS == 1
-		//Translate Attitude to local reference frame.
+		//Translate attitude and global rate to local reference frame.
 		translateValues(attitudeDesiredAxis, attitudeActualAxis);
 		translateValues(rateDesiredAxis, attitudeActualAxis);
-#endif
 
 		//Calculate desired rate
 		for(int8_t ct=0; ct< MAX_AXES; ct++)
 		{
-			if (manualControl.StabilizationSettings[ct] == MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_ATTITUDE) {
-				rateDesiredAxis[ct] += ApplyPid(&pids[PID_ROLL + ct],  attitudeDesiredAxis[ct]);
-			}
-			if(fabs(rateDesiredAxis[ct]) > settings.MaximumRate[ct])
+			localRate[ct] += rateDesiredAxis[ct];                                      // add (translated) rate desired
+			localRate[ct] += ApplyPid(&pids[PID_ROLL + ct],  attitudeDesiredAxis[ct]); // add result of attitude PID loop
+			if(fabs(localRate[ct]) > settings.MaximumRate[ct]) // make sure we stay within bounds
 			{
-				if(rateDesiredAxis[ct] > 0)
+				if(localRate[ct] > 0)
 				{
-					rateDesiredAxis[ct] = settings.MaximumRate[ct];
+					localRate[ct] = settings.MaximumRate[ct];
 				}else
 				{
-					rateDesiredAxis[ct] = -settings.MaximumRate[ct];
+					localRate[ct] = -settings.MaximumRate[ct];
 				}
 			}
 		}
 
 		uint8_t shouldUpdate = 0;
-		//RateDesiredSet(&rateDesired); TODO: need new UAVObject for local rate
+		//RateDesiredSet(&rateDesired); TODO: need new UAVObject to store local rate
 		ActuatorDesiredGet(&actuatorDesired);
 
 		// calculate rate errors
-		calcDifference( rateDesiredAxis, attitudeRaw.gyros_filtered, 0);
-
-#if TRANSLATE_COORDS == 2
-		//Translate rate errors to local reference frame.
-		translateValues(rateDesiredAxis, attitudeActualAxis);
-		#warning this is untested
-#endif
+		calcDifference( localRate, attitudeRaw.gyros_filtered, 0);
 
 		//Calculate desired command
 		for(int8_t ct=0; ct< MAX_AXES; ct++)
 		{
-			switch(manualControl.StabilizationSettings[ct])
+			if (manualControl.StabilizationSettings[ct] != MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_NONE)
 			{
-			case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_RATE:
-			case MANUALCONTROLCOMMAND_STABILIZATIONSETTINGS_ATTITUDE:
-				{
-					float command = ApplyPid(&pids[PID_RATE_ROLL + ct],  rateDesiredAxis[ct]);
+					float command = ApplyPid(&pids[PID_RATE_ROLL + ct],  localRate[ct]);
 					actuatorDesiredAxis[ct] = bound(command);
 					shouldUpdate = 1;
-					break;
-				}
 			}
 		}
-
-#if TRANSLATE_COORDS == 3
-		//Translate Actuator settings to local reference frame.
-		translateValues(actuatorDesiredAxis,attitudeActualAxis);
-		#warning this is untested
-#endif
 
 		// Save dT
 		actuatorDesired.UpdateTime = dT * 1000;
@@ -344,16 +320,6 @@ static void translateValues(float * values, float * reference)
 {
 
 	float tmp[MAX_AXES];
-
-#if TRANSLATE_METHOD == 1 && TRANSLATE_COORDS == 1
-	// UNTESTED!!! (and also likely unnecessary since neglectible for small values)
-	// adjust PITCH to corect the (PITCH) difference between a YAW rotation around the
-	// vertical axis and a YAW rotation around the local vertical axis
-	// WARNING!!! This only makes sense if values[YAW] is an angle.
-	// Therefore it cannot work for rates and/or actuatorDemands
-	values[PITCH] = values[PITCH] + ( reference[PITCH] - cos( DEG2RAD * values[YAW] ) * reference[PITCH] );
-	#warning this is untested
-#endif
 
 	// traditional translation: rotate YAW and PITCH by roll
 	tmp[PITCH] = cos( DEG2RAD * reference[ROLL] ) * values[PITCH]
