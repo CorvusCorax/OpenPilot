@@ -112,9 +112,9 @@ void WMM_GetMagVector(float Lat, float Lon, float AltEllipsoid, uint16_t Month, 
 	WMM_TimelyModifyMagneticModel(Date);
 	WMM_Geomag(CoordSpherical, CoordGeodetic, GeoMagneticElements);	/* Computes the geoMagnetic field elements and their time change */
 
-	B[0] = GeoMagneticElements->X;
-	B[1] = GeoMagneticElements->Y;
-	B[2] = GeoMagneticElements->Z;
+	B[0] = GeoMagneticElements->X * 1e-2;
+	B[1] = GeoMagneticElements->Y * 1e-2;
+	B[2] = GeoMagneticElements->Z * 1e-2;
 
 	vPortFree(Ellip);
 	vPortFree(MagneticModel);
