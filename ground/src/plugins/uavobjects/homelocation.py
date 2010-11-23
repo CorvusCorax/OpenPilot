@@ -121,12 +121,22 @@ _fields = [ \
 		{
 		}
 	),
+	uavobject.UAVObjectField(
+		'g_e',
+		'f',
+		1,
+		[
+			'0',
+		],
+		{
+		}
+	),
 ]
 
 
 class HomeLocation(uavobject.UAVObject):
     ## Object constants
-    OBJID        = 3590360786
+    OBJID        = 1760374628
     NAME         = "HomeLocation"
     METANAME     = "HomeLocationMeta"
     ISSINGLEINST = 1

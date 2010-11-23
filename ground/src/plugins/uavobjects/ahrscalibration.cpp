@@ -58,6 +58,11 @@ AHRSCalibration::AHRSCalibration(): UAVDataObject(OBJID, ISSINGLEINST, ISSETTING
     accel_scaleElemNames.append("Y");
     accel_scaleElemNames.append("Z");
     fields.append( new UAVObjectField(QString("accel_scale"), QString("m/s"), UAVObjectField::FLOAT32, accel_scaleElemNames, QStringList()) );
+    QStringList accel_orthoElemNames;
+    accel_orthoElemNames.append("XY");
+    accel_orthoElemNames.append("XZ");
+    accel_orthoElemNames.append("YZ");
+    fields.append( new UAVObjectField(QString("accel_ortho"), QString("scale"), UAVObjectField::FLOAT32, accel_orthoElemNames, QStringList()) );
     QStringList accel_varElemNames;
     accel_varElemNames.append("X");
     accel_varElemNames.append("Y");
@@ -130,9 +135,12 @@ void AHRSCalibration::setDefaultFieldValues()
     data.accel_bias[0] = -72;
     data.accel_bias[1] = -72;
     data.accel_bias[2] = 72;
-    data.accel_scale[0] = 0.003;
-    data.accel_scale[1] = 0.003;
-    data.accel_scale[2] = -0.003;
+    data.accel_scale[0] = 0.036;
+    data.accel_scale[1] = 0.036;
+    data.accel_scale[2] = -0.036;
+    data.accel_ortho[0] = 0;
+    data.accel_ortho[1] = 0;
+    data.accel_ortho[2] = 0;
     data.accel_var[0] = 5e-05;
     data.accel_var[1] = 5e-05;
     data.accel_var[2] = 5e-05;

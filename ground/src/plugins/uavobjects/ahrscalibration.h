@@ -46,6 +46,7 @@ public:
         quint8 measure_var;
         float accel_bias[3];
         float accel_scale[3];
+        float accel_ortho[3];
         float accel_var[3];
         float gyro_bias[3];
         float gyro_scale[3];
@@ -70,6 +71,11 @@ public:
     typedef enum { ACCEL_SCALE_X=0, ACCEL_SCALE_Y=1, ACCEL_SCALE_Z=2 } accel_scaleElem;
     /* Number of elements for field accel_scale */
     static const quint32 ACCEL_SCALE_NUMELEM = 3;
+    // Field accel_ortho information
+    /* Array element names for field accel_ortho */
+    typedef enum { ACCEL_ORTHO_XY=0, ACCEL_ORTHO_XZ=1, ACCEL_ORTHO_YZ=2 } accel_orthoElem;
+    /* Number of elements for field accel_ortho */
+    static const quint32 ACCEL_ORTHO_NUMELEM = 3;
     // Field accel_var information
     /* Array element names for field accel_var */
     typedef enum { ACCEL_VAR_X=0, ACCEL_VAR_Y=1, ACCEL_VAR_Z=2 } accel_varElem;
@@ -108,7 +114,7 @@ public:
 
   
     // Constants
-    static const quint32 OBJID = 1408636690U;
+    static const quint32 OBJID = 2849879032U;
     static const QString NAME;
     static const bool ISSINGLEINST = 1;
     static const bool ISSETTINGS = 1;

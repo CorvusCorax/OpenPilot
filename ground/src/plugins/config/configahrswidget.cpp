@@ -458,18 +458,33 @@ void ConfigAHRSWidget::savePositionData()
 
 //*****************************************************************
 namespace {
+/**
+ * Updates the scale factors and offsets for a calibrated vector field.
+ * @param scale[out] Non-null pointer to a 3-element scale factor field.
+ * @param bias[out] Non-null pointer to a 3-element bias field.
+ * @param ortho[out] Optional pointer to a 3-element orthogonal correction field
+ * @param updateScale the source scale factor matrix.
+ * @param updateBias the source bias matrix.
+ */
 void
 updateScaleFactors(UAVObjectField *scale,
-		UAVObjectField *bias,
+		UAVObjectField *bias ,
+		UAVObjectField *ortho,
 		const Matrix3f& updateScale,
 		const Vector3f& updateBias)
 {
-	// Compose a 4x4 affine transformation matrix composed of the scale factor
-	// and bias.
+	// Compose a 4x4 affine transformation matrix composed of the scale factor,
+	// orthogonality correction, and bias.
 	Matrix4f calibration;
     calibration << (Vector3f() << scale->getDouble(0), scale->getDouble(1), scale->getDouble(2)).finished().asDiagonal(),
 		(Vector3f() << bias->getDouble(0), bias->getDouble(1), bias->getDouble(2)).finished(),
 		Vector4f::UnitW().transpose();
+
+    if (ortho) {
+    	calibration(1, 0) = calibration(0, 1) = ortho->getDouble(0);
+    	calibration(2, 0) = calibration(0, 2) = ortho->getDouble(1);
+    	calibration(1, 2) = calibration(2, 1) = ortho->getDouble(2);
+    }
 
     Matrix4f update;
     update << updateScale, updateBias, Vector4f::UnitW().transpose();
@@ -483,6 +498,12 @@ updateScaleFactors(UAVObjectField *scale,
     bias->setDouble(calibration(0,3), 0);
     bias->setDouble(calibration(1,3), 1);
     bias->setDouble(calibration(2,3), 2);
+
+    if (ortho) {
+    	ortho->setDouble(calibration(0, 1), 0);
+    	ortho->setDouble(calibration(0, 2), 1);
+    	ortho->setDouble(calibration(1, 2), 2);
+    }
 }
 } // !namespace (anon)
 
@@ -490,15 +511,12 @@ void ConfigAHRSWidget::computeScaleBias()
 {
     UAVObject *home = dynamic_cast<UAVDataObject*>(getObjectManager()->getObject(QString("HomeLocation")));
     // The home location is in units of nano Tesla.  Multiply by 1e-2 to get milli Gauss.
-    // TODO: Convert HomeLocation to use units of milliGauss instead.
     Vector3f localMagField;
     localMagField << home->getField("Be")->getValue(0).toDouble(),
 		home->getField("Be")->getValue(1).toDouble(),
 		home->getField("Be")->getValue(2).toDouble();
-    localMagField *= 1e-2;
 
-    // TODO: Load local gravity from HomeLocation
-    float localGravity = 9.82f;
+    float localGravity = home->getField("g_e")->getDouble();
 
     Vector3f referenceField = Vector3f::UnitZ()*localGravity;
     double noise = 0.04;
@@ -550,16 +568,19 @@ void ConfigAHRSWidget::computeScaleBias()
     UAVObject *obj = dynamic_cast<UAVDataObject*>(getObjectManager()->getObject(QString("AHRSCalibration")));
     updateScaleFactors(obj->getField(QString("accel_scale")),
     		obj->getField(QString("accel_bias")),
+    		obj->getField(QString("accel_ortho")),
     		accelScale,
     		accelBias);
 
     updateScaleFactors(obj->getField(QString("mag_scale")),
     		obj->getField(QString("mag_bias")),
+    		NULL,
     		magScale,
     		magBias);
 
     updateScaleFactors(obj->getField(QString("gyro_scale")),
     		obj->getField(QString("gyro_bias")),
+    		NULL,
     		Matrix3f::Identity(),
     		-gyroBias);
 
@@ -579,14 +600,21 @@ void ConfigAHRSWidget::sixPointCalibrationMode()
 
     // set accels to unity gain
     UAVObjectField *field = obj->getField(QString("accel_scale"));
-    field->setDouble(1.0 / 32, 0);
-    field->setDouble(1.0 / 32, 1);
-    field->setDouble(-1.0 / 32, 2);
+    // TODO: Figure out how to load these directly from the saved metadata
+    // about default values
+    field->setDouble(0.036, 0);
+    field->setDouble(0.036, 1);
+    field->setDouble(-0.036, 2);
 
     field = obj->getField(QString("accel_bias"));
-    field->setDouble(-2048.0/32, 0);
-    field->setDouble(-2048.0/32, 1);
-    field->setDouble(2048.0/32, 2);
+    field->setDouble(-72, 0);
+    field->setDouble(-72, 1);
+    field->setDouble(72, 2);
+
+    field = obj->getField(QString("accel_ortho"));
+    for (int i = 0; i < 3; ++i) {
+    	field->setDouble(0, i);
+    }
 
 #if 0
     field = obj->getField(QString("gyro_bias"));
@@ -596,14 +624,14 @@ void ConfigAHRSWidget::sixPointCalibrationMode()
 #endif
 
     field = obj->getField(QString("mag_scale"));
-    field->setDouble(-1,0);
-    field->setDouble(-1,1);
-    field->setDouble(-1,2);
+    for (int i = 0; i < 3; ++i) {
+    	field->setDouble(-1, i);
+    }
 
     field = obj->getField(QString("mag_bias"));
-    field->setDouble(0,0);
-    field->setDouble(0,1);
-    field->setDouble(0,2);
+    for (int i = 0; i < 3; ++i) {
+    	field->setDouble(0, i);
+    }
 
     obj->updated();
 

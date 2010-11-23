@@ -41,7 +41,7 @@
 #define HOMELOCATION_H
 
 // Object constants
-#define HOMELOCATION_OBJID 3590360786U
+#define HOMELOCATION_OBJID 1760374628U
 #define HOMELOCATION_NAME "HomeLocation"
 #define HOMELOCATION_METANAME "HomeLocationMeta"
 #define HOMELOCATION_ISSINGLEINST 1
@@ -78,6 +78,7 @@ typedef struct {
     int32_t ECEF[3];
     float RNE[9];
     float Be[3];
+    float g_e;
 
 } __attribute__((packed)) HomeLocationData;
 
@@ -97,6 +98,7 @@ typedef enum { HOMELOCATION_SET_FALSE=0, HOMELOCATION_SET_TRUE=1 } HomeLocationS
 // Field Be information
 /* Number of elements for field Be */
 #define HOMELOCATION_BE_NUMELEM 3
+// Field g_e information
 
 
 // Generic interface functions

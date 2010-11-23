@@ -41,7 +41,7 @@
 #define AHRSCALIBRATION_H
 
 // Object constants
-#define AHRSCALIBRATION_OBJID 1408636690U
+#define AHRSCALIBRATION_OBJID 2849879032U
 #define AHRSCALIBRATION_NAME "AHRSCalibration"
 #define AHRSCALIBRATION_METANAME "AHRSCalibrationMeta"
 #define AHRSCALIBRATION_ISSINGLEINST 1
@@ -74,6 +74,7 @@ typedef struct {
     uint8_t measure_var;
     float accel_bias[3];
     float accel_scale[3];
+    float accel_ortho[3];
     float accel_var[3];
     float gyro_bias[3];
     float gyro_scale[3];
@@ -98,6 +99,11 @@ typedef enum { AHRSCALIBRATION_ACCEL_BIAS_X=0, AHRSCALIBRATION_ACCEL_BIAS_Y=1, A
 typedef enum { AHRSCALIBRATION_ACCEL_SCALE_X=0, AHRSCALIBRATION_ACCEL_SCALE_Y=1, AHRSCALIBRATION_ACCEL_SCALE_Z=2 } AHRSCalibrationaccel_scaleElem;
 /* Number of elements for field accel_scale */
 #define AHRSCALIBRATION_ACCEL_SCALE_NUMELEM 3
+// Field accel_ortho information
+/* Array element names for field accel_ortho */
+typedef enum { AHRSCALIBRATION_ACCEL_ORTHO_XY=0, AHRSCALIBRATION_ACCEL_ORTHO_XZ=1, AHRSCALIBRATION_ACCEL_ORTHO_YZ=2 } AHRSCalibrationaccel_orthoElem;
+/* Number of elements for field accel_ortho */
+#define AHRSCALIBRATION_ACCEL_ORTHO_NUMELEM 3
 // Field accel_var information
 /* Array element names for field accel_var */
 typedef enum { AHRSCALIBRATION_ACCEL_VAR_X=0, AHRSCALIBRATION_ACCEL_VAR_Y=1, AHRSCALIBRATION_ACCEL_VAR_Z=2 } AHRSCalibrationaccel_varElem;

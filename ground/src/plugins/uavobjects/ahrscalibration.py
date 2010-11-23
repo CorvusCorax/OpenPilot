@@ -74,6 +74,18 @@ _fields = [ \
 		}
 	),
 	uavobject.UAVObjectField(
+		'accel_ortho',
+		'f',
+		3,
+		[
+			'XY',
+			'XZ',
+			'YZ',
+		],
+		{
+		}
+	),
+	uavobject.UAVObjectField(
 		'accel_var',
 		'f',
 		3,
@@ -162,7 +174,7 @@ _fields = [ \
 
 class AHRSCalibration(uavobject.UAVObject):
     ## Object constants
-    OBJID        = 1408636690
+    OBJID        = 2849879032
     NAME         = "AHRSCalibration"
     METANAME     = "AHRSCalibrationMeta"
     ISSINGLEINST = 1

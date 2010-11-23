@@ -50,6 +50,7 @@ public:
         qint32 ECEF[3];
         float RNE[9];
         float Be[3];
+        float g_e;
 
     } __attribute__((packed)) DataFields;
 
@@ -69,10 +70,11 @@ public:
     // Field Be information
     /* Number of elements for field Be */
     static const quint32 BE_NUMELEM = 3;
+    // Field g_e information
 
   
     // Constants
-    static const quint32 OBJID = 3590360786U;
+    static const quint32 OBJID = 1760374628U;
     static const QString NAME;
     static const bool ISSINGLEINST = 1;
     static const bool ISSETTINGS = 1;

@@ -78,6 +78,9 @@ HomeLocation::HomeLocation(): UAVDataObject(OBJID, ISSINGLEINST, ISSETTINGS, NAM
     BeElemNames.append("1");
     BeElemNames.append("2");
     fields.append( new UAVObjectField(QString("Be"), QString(""), UAVObjectField::FLOAT32, BeElemNames, QStringList()) );
+    QStringList g_eElemNames;
+    g_eElemNames.append("0");
+    fields.append( new UAVObjectField(QString("g_e"), QString("m/s^2"), UAVObjectField::FLOAT32, g_eElemNames, QStringList()) );
 
     // Initialize object
     initializeFields(fields, (quint8*)&data, NUMBYTES);
@@ -130,6 +133,7 @@ void HomeLocation::setDefaultFieldValues()
     data.Be[0] = 0;
     data.Be[1] = 0;
     data.Be[2] = 0;
+    data.g_e = 9.81;
 
 }
 

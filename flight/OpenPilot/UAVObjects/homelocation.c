@@ -99,6 +99,7 @@ static void setDefaults(UAVObjHandle obj, uint16_t instId)
 	data.Be[0] = 0;
 	data.Be[1] = 0;
 	data.Be[2] = 0;
+	data.g_e = 9.81;
 
 	UAVObjSetInstanceData(obj, instId, &data);
 

@@ -84,9 +84,12 @@ static void setDefaults(UAVObjHandle obj, uint16_t instId)
 	data.accel_bias[0] = -72;
 	data.accel_bias[1] = -72;
 	data.accel_bias[2] = 72;
-	data.accel_scale[0] = 0.003;
-	data.accel_scale[1] = 0.003;
-	data.accel_scale[2] = -0.003;
+	data.accel_scale[0] = 0.036;
+	data.accel_scale[1] = 0.036;
+	data.accel_scale[2] = -0.036;
+	data.accel_ortho[0] = 0;
+	data.accel_ortho[1] = 0;
+	data.accel_ortho[2] = 0;
 	data.accel_var[0] = 5e-05;
 	data.accel_var[1] = 5e-05;
 	data.accel_var[2] = 5e-05;
