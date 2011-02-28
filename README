@@ -1,0 +1,32 @@
+OpenPilot
+
+The GIT repository you cloned is auto updated from subversion.  Commits have to
+go to the subversion repository directly via git svn dcommit.
+
+Any changes to subversion will automatically be applied to this repository and
+can be pulled from their branches (latest dev work is in branch "trunk")
+
+To access the subversion repository do the following:
+
+1. Add the following lines to your .git/config file:
+
+===<snip>===========================
+[svn-remote "svn"]
+        url = svn://svn.openpilot.org/OpenPilot
+        fetch = trunk:refs/remotes/trunk
+        branches = branches/*:refs/remotes/*
+        tags = tags/*:refs/remotes/tags/*
+===</snip>==========================
+
+2. pull the latest revision of the MASTER branch from github
+
+	git checkout master;
+	git pull;
+
+3. copy the contents of the "git" sub folder within the master "branch" into your own .git folder
+   (this will give you correct revision history to the latest subversion revision)
+
+
+
+
+
