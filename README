@@ -1,14 +1,60 @@
-OpenPilot
+OpenPilot       http://openpilot.org       Corvus Corax       2011-03-01
 
-The GIT repository you cloned is auto updated from subversion.  Commits have to
-go to the subversion repository directly via git svn dcommit.
+===============================================================================
 
-Any changes to subversion will automatically be applied to this repository and
-can be pulled from their branches (latest dev work is in branch "trunk")
+This is an experimental GIT repository of the OpenPilot project.
+OpenPilot is free software, see LICENSE.txt for details.
 
-To access the subversion repository do the following:
+===============================================================================
 
-1. Add the following lines to your .git/config file:
+This GIT repository is an auto updated mirror of our subversion repository and
+is read-only! Any code changes have to be submitted to the subversion
+repository directly via "git svn dcommit". Any such changes to subversion will
+automatically be applied to this repository and can be pulled from their
+branches.
+
+
+I. Read only Access:
+===============================================================================
+
+ For read-only access clone this repository with
+
+	git clone git://github.com/CorvusCorax/OpenPilot.git
+
+ Then checkout the branch holding our subversion development trunk with
+
+	git checkout trunk
+
+ You can pull the latest changes to your current branch from this git repository
+ with
+
+	git pull --rebase
+
+
+
+II. Developer Access:
+===============================================================================
+
+ To commit changes to the OpenPilot repository you need write access to
+ subversion. Code developed in a local git repository can be committed to
+ subversion with
+
+	git svn dcommit
+
+ For that to work your working repository needs to be "linked" to subversion.
+ There are two options:
+
+ Option 1:
+   Create a new repository linked to subversion with
+
+ 	git svn clone -s svn://svn.openpilot.org/OpenPilot
+
+   Be aware that this is a lengthy process and will take several hours.
+
+ Option 2:
+   Link your clone of this git repository to subversion
+
+   1. Add the following lines to your .git/config file:
 
 ===<snip>===========================
 [svn-remote "svn"]
@@ -18,15 +64,35 @@ To access the subversion repository do the following:
         tags = tags/*:refs/remotes/tags/*
 ===</snip>==========================
 
-2. pull the latest revision of the MASTER branch from github
+   2. Update the master branch to the latest revision
 
 	git checkout master;
-	git pull;
+	git pull --rebase;
 
-3. copy the contents of the "git" sub folder within the master "branch" into your own .git folder
-   (this will give you correct revision history to the latest subversion revision)
+   3. Copy the contents of the "git" sub folder in "master" into your own .git
+      folder. This will give you correct revision history to the latest subversion
+      revision.
 
+   Your git repository is now linked to subversion int the same way, a
+   repository created with "git svn clone" would be. You can make future updates
+   to your working branch either with
 
+	git svn rebase
 
+   or by pulling the changes from the repository on github with
 
+	git pull --rebase
+
+   If you use the second option iexclusively, it is highly recommended to update
+   your subversion reference files by repeating step 2 and 3 prior to any
+   dcommit. You can automate this by executing the script mentioned below.
+
+===============================================================================
+
+On a system with a working BASH interpreter, you can automate linking your
+repository to subversion by executing
+
+	./link_to_subversion.sh
+
+in this directory.
 
