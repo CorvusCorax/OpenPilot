@@ -9836,3 +9836,9 @@ r2919
 r2920
 r2921
 r2922
+r2923
+r2924
+  -empty_dir: trunk/ground/openpilotgcs/src/plugins/config/widgetbar.cpp
+  -empty_dir: trunk/ground/openpilotgcs/src/plugins/config/widgetbar.h
+r2925
+r2926
