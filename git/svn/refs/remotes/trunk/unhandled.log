@@ -9854,3 +9854,5 @@ r2934
 r2935
 r2936
 r2937
+r2938
+  +file_prop: trunk/flight/Modules/FlightPlan/lib/uavobject.py svn:mime-type text/plain
