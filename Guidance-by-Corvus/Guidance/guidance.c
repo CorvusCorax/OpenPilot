@@ -4,7 +4,7 @@
  * @file       guidance.c
  * @author     The OpenPilot Team, http://www.openpilot.org Copyright (C) 2010.
  * @brief      This module compared @ref PositionActuatl to @ref ActiveWaypoint 
- * and sets @ref AttitudeDesired.  It only does this when the FlightMode field
+ * and sets @ref StabilizationDesired.  It only does this when the FlightMode field
  * of @ref ManualControlCommand is Auto.
  *
  * @see        The GNU Public License (GPL) Version 3
@@ -30,9 +30,9 @@
  * Input object: ActiveWaypoint
  * Input object: PositionActual
  * Input object: ManualControlCommand
- * Output object: AttitudeDesired
+ * Output object: StabilizationDesired
  *
- * This module will periodically update the value of the AttitudeDesired object.
+ * This module will periodically update the value of the StabilizationDesired object.
  *
  * The module executes in its own thread in this example.
  *
@@ -48,11 +48,12 @@
 #include "guidancesettings.h"
 #include "attituderaw.h"
 #include "attitudeactual.h"
-#include "attitudedesired.h"
 #include "positiondesired.h"	// object that will be updated by the module
 #include "positionactual.h"
+#include "manualcontrol.h"
 #include "manualcontrolcommand.h"
 #include "nedaccel.h"
+#include "stabilizationdesired.h"
 #include "stabilizationsettings.h"
 #include "systemsettings.h"
 #include "velocitydesired.h"
@@ -61,8 +62,10 @@
 
 // Private constants
 #define MAX_QUEUE_SIZE 1
-#define STACK_SIZE_BYTES 824
+#define STACK_SIZE_BYTES 1500
 #define TASK_PRIORITY (tskIDLE_PRIORITY+2)
+#define RAD2DEG (180.0/M_PI)
+#define GEE 9.81
 // Private types
 
 // Private variables
@@ -73,8 +76,9 @@ static xQueueHandle queue;
 static void guidanceTask(void *parameters);
 static float bound(float val, float min, float max);
 
-static void updateVtolDesiredVelocity();
+static void updateDirectDesiredVelocity();
 static void manualSetDesiredVelocity();
+static void updateFixedDesiredAttitude();
 static void updateVtolDesiredAttitude();
 
 /**
@@ -99,6 +103,10 @@ int32_t GuidanceInitialize()
 static float northIntegral = 0;
 static float eastIntegral = 0;
 static float downIntegral = 0;
+static float courseIntegral = 0;
+static float speedIntegral = 0;
+static float accelIntegral = 0;
+static float powerIntegral = 0;
 static uint8_t positionHoldLast = 0;
 
 /**
@@ -124,6 +132,7 @@ static void guidanceTask(void *parameters)
 	// Main task loop
 	lastUpdateTime = xTaskGetTickCount();
 	while (1) {
+		GuidanceSettingsGet(&guidanceSettings);
 
 		// Wait until the AttitudeRaw object is updated, if a timeout then go to failsafe
 		if ( xQueueReceive(queue, &ev, guidanceSettings.UpdatePeriod / portTICK_RATE_MS) != pdTRUE )
@@ -161,17 +170,18 @@ static void guidanceTask(void *parameters)
 		Quaternion2R(q, Rbe);
 		for (uint8_t i=0; i<3; i++){
 			accel_ned[i]=0;
-			for (uint8_t j=0; j<3; j++)
+			for (uint8_t j=0; j<3; j++) {
 				accel_ned[i] += Rbe[j][i]*accel[j];
+			}
 		}
-		accel_ned[2] += 9.81;
+		accel_ned[2] += GEE;
 		
 		NedAccelData accelData;
 		NedAccelGet(&accelData);
 		// Convert from m/s to cm/s
-		accelData.North = accel[0] * 100;
-		accelData.East = accel[1] * 100;
-		accelData.North = accel[2] * 100;
+		accelData.North = accel_ned[0] * 100;
+		accelData.East = accel_ned[1] * 100;
+		accelData.Down = accel_ned[2] * 100;
 		NedAccelSet(&accelData);
 		
 		
@@ -179,8 +189,11 @@ static void guidanceTask(void *parameters)
 		SystemSettingsGet(&systemSettings);
 		GuidanceSettingsGet(&guidanceSettings);
 		
-		if ((manualControl.FlightMode == MANUALCONTROLCOMMAND_FLIGHTMODE_AUTO) &&
-		    ((systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_VTOL) ||
+		if ((PARSE_FLIGHT_MODE(manualControl.FlightMode) == FLIGHTMODE_GUIDANCE) &&
+		    ((systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_FIXEDWING) ||
+		     (systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_FIXEDWINGELEVON) ||
+		     (systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_FIXEDWINGVTAIL) ||
+		     (systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_VTOL) ||
 		     (systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_QUADP) ||
 		     (systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_QUADX) ||
 		     (systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_HEXA) ))
@@ -193,15 +206,22 @@ static void guidanceTask(void *parameters)
 				PositionActualGet(&positionActual);
 				positionDesired.North = positionActual.North;
 				positionDesired.East = positionActual.East;
+				positionDesired.Down = positionActual.Down;
 				PositionDesiredSet(&positionDesired);
 				positionHoldLast = 1;
 			}
 			
 			if(guidanceSettings.GuidanceMode == GUIDANCESETTINGS_GUIDANCEMODE_DUAL_LOOP) 
-				updateVtolDesiredVelocity();
+				updateDirectDesiredVelocity();
 			else
 				manualSetDesiredVelocity();			
-			updateVtolDesiredAttitude();
+			if ((systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_FIXEDWING) ||
+		     (systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_FIXEDWINGELEVON) ||
+		     (systemSettings.AirframeType == SYSTEMSETTINGS_AIRFRAMETYPE_FIXEDWINGVTAIL)) {
+				updateFixedDesiredAttitude();
+			} else {
+				updateVtolDesiredAttitude();
+			}
 			
 		} else {
 			// Be cleaner and get rid of global variables
@@ -209,6 +229,10 @@ static void guidanceTask(void *parameters)
 			eastIntegral = 0;
 			downIntegral = 0;
 			positionHoldLast = 0;
+			courseIntegral = 0;
+			speedIntegral = 0;
+			accelIntegral = 0;
+			powerIntegral = 0;
 		}
 		
 		accel[0] = accel[1] = accel[2] = 0;
@@ -222,7 +246,7 @@ static void guidanceTask(void *parameters)
  * Takes in @ref PositionActual and compares it to @ref PositionDesired 
  * and computes @ref VelocityDesired
  */
-void updateVtolDesiredVelocity()
+void updateDirectDesiredVelocity()
 {
 	GuidanceSettingsData guidanceSettings;
 	PositionActualData positionActual;
@@ -250,7 +274,140 @@ void updateVtolDesiredVelocity()
 				     -guidanceSettings.VerticalP[GUIDANCESETTINGS_VERTICALP_MAX], 
 				     guidanceSettings.VerticalP[GUIDANCESETTINGS_VERTICALP_MAX]);
 	
-	VelocityDesiredSet(&velocityDesired);	
+	VelocityDesiredSet(&velocityDesired);
+
+}
+
+/**
+ * Compute desired attitude from the desired velocity
+ *
+ * Takes in @ref NedActual which has the acceleration in the 
+ * NED frame as the feedback term and then compares the 
+ * @ref VelocityActual against the @ref VelocityDesired
+ */
+static void updateFixedDesiredAttitude()
+{
+	static portTickType lastSysTime;
+	portTickType thisSysTime = xTaskGetTickCount();;
+	float dT;
+
+	VelocityDesiredData velocityDesired;
+	VelocityActualData velocityActual;
+	StabilizationDesiredData stabDesired;
+	AttitudeActualData attitudeActual;
+	NedAccelData nedAccel;
+	AttitudeRawData attitudeRaw;
+	GuidanceSettingsData guidanceSettings;
+	StabilizationSettingsData stabSettings;
+	SystemSettingsData systemSettings;
+
+	float courseError;
+	float courseCommand;
+
+	float speedError;
+	float accelCommand;
+
+	float speedActual;
+	float speedDesired;
+	float accelDesired;
+	float accelError;
+
+	float powerActual;
+	float powerError;
+	float powerCommand;
+
+
+	// Check how long since last update
+	if(thisSysTime > lastSysTime) // reuse dt in case of wraparound
+		dT = (thisSysTime - lastSysTime) / portTICK_RATE_MS / 1000.0f;		
+	lastSysTime = thisSysTime;
+	
+	SystemSettingsGet(&systemSettings);
+	GuidanceSettingsGet(&guidanceSettings);
+	
+	VelocityActualGet(&velocityActual);
+	VelocityDesiredGet(&velocityDesired);
+	StabilizationDesiredGet(&stabDesired);
+	VelocityDesiredGet(&velocityDesired);
+	AttitudeActualGet(&attitudeActual);
+	AttitudeRawGet(&attitudeRaw);
+	StabilizationSettingsGet(&stabSettings);
+	NedAccelGet(&nedAccel);
+
+	// current speed - lacking forward airspeed we use groundspeed :( TODO get airspeed sensor!
+	speedActual = sqrt(pow(velocityActual.East, 2) + pow(velocityActual.North, 2) + pow(velocityActual.Down, 2));
+
+	// We assume that the Throttle setting gives us control over the power distribution
+	// therefore we make a control loop over this
+	powerActual = attitudeRaw.accels[0] * speedActual - GEE * velocityActual.Down;
+
+	// Compute desired roll command
+	courseError = RAD2DEG * (atan2f(velocityDesired.East,velocityDesired.North) - atan2f(velocityActual.East,velocityActual.North));
+	if (courseError<-180.) courseError+=360.;
+	if (courseError>180.) courseError-=360.;
+
+	courseIntegral = bound(courseIntegral + courseError * dT, 
+			      -guidanceSettings.CoursePI[GUIDANCESETTINGS_COURSEPI_ILIMIT],
+			      guidanceSettings.CoursePI[GUIDANCESETTINGS_COURSEPI_ILIMIT]);
+	courseCommand = (courseError * guidanceSettings.CoursePI[GUIDANCESETTINGS_COURSEPI_KP] +
+			courseIntegral * guidanceSettings.CoursePI[GUIDANCESETTINGS_COURSEPI_KI]);
+	
+	stabDesired.Roll = bound( courseCommand, -guidanceSettings.MaxRollPitch, guidanceSettings.MaxRollPitch );
+
+	// Compute desired yaw command
+	if (speedActual>0) {
+		// rate is speed dependent and roll dependent. The faster the plane, the slower it turns at a given roll rate.
+		// (A "fixed roll angle level turn" is a turn at fixed G rate)
+		//stabDesired.Yaw = RAD2DEG * tanf(stabDesired.Roll / RAD2DEG) * 100. * GEE / speedActual;
+		// this is a global rate - translate to local since rates are always local
+		//stabDesired.Yaw = stabDesired.Yaw * cosf(stabDesired.Roll / RAD2DEG);
+		// tan = sin/cos - so tan*cos = sin
+		stabDesired.Yaw = RAD2DEG * sinf(stabDesired.Roll / RAD2DEG) * 100. * GEE / speedActual;
+	} else {
+		stabDesired.Yaw = 0;
+	}
+
+	// Compute desired speed command  TODO: make cruise speed a variable
+	speedDesired = guidanceSettings.CruiseSpeed;
+	speedError = speedDesired - speedActual;
+
+	accelDesired = bound( speedError * guidanceSettings.SpeedP[GUIDANCESETTINGS_SPEEDP_KP],
+				-guidanceSettings.SpeedP[GUIDANCESETTINGS_SPEEDP_MAX],
+				guidanceSettings.SpeedP[GUIDANCESETTINGS_SPEEDP_MAX]);
+	
+	accelError = accelDesired - attitudeRaw.accels[0];
+
+	accelIntegral = bound(accelIntegral + accelError * dT, 
+			     -guidanceSettings.AccelPI[GUIDANCESETTINGS_ACCELPI_ILIMIT],
+			     guidanceSettings.AccelPI[GUIDANCESETTINGS_ACCELPI_ILIMIT]);
+	accelCommand = (accelError * guidanceSettings.AccelPI[GUIDANCESETTINGS_ACCELPI_KP] + 
+		       accelIntegral * guidanceSettings.AccelPI[GUIDANCESETTINGS_ACCELPI_KI]);
+
+	stabDesired.Pitch = bound(-accelCommand,
+				      -guidanceSettings.MaxRollPitch, guidanceSettings.MaxRollPitch);
+
+	// Compute desired power command
+	powerError =  -( velocityDesired.Down - velocityActual.Down ) + speedError;
+	powerIntegral =	bound(powerIntegral + powerError * dT, 
+			      -guidanceSettings.PowerPI[GUIDANCESETTINGS_POWERPI_ILIMIT],
+			      guidanceSettings.PowerPI[GUIDANCESETTINGS_POWERPI_ILIMIT]);	
+	powerCommand = 0.5+(powerError * guidanceSettings.PowerPI[GUIDANCESETTINGS_POWERPI_KP] +
+		       powerIntegral * guidanceSettings.PowerPI[GUIDANCESETTINGS_POWERPI_KI]);
+	
+	stabDesired.Throttle = bound(powerCommand, 0, 1);
+
+	if(guidanceSettings.ThrottleControl == GUIDANCESETTINGS_THROTTLECONTROL_FALSE) {
+		// For now override throttle with manual control.  Disable at your risk, quad goes to China.
+		ManualControlCommandData manualControl;
+		ManualControlCommandGet(&manualControl);
+		stabDesired.Throttle = manualControl.Throttle;
+	}
+
+	stabDesired.StabilizationMode[STABILIZATIONDESIRED_STABILIZATIONMODE_ROLL] = STABILIZATIONDESIRED_STABILIZATIONMODE_ATTITUDE;
+	stabDesired.StabilizationMode[STABILIZATIONDESIRED_STABILIZATIONMODE_PITCH] = STABILIZATIONDESIRED_STABILIZATIONMODE_ATTITUDE;
+	stabDesired.StabilizationMode[STABILIZATIONDESIRED_STABILIZATIONMODE_YAW] = STABILIZATIONDESIRED_STABILIZATIONMODE_RATE;
+	
+	StabilizationDesiredSet(&stabDesired);
 }
 
 /**
@@ -268,7 +425,7 @@ static void updateVtolDesiredAttitude()
 
 	VelocityDesiredData velocityDesired;
 	VelocityActualData velocityActual;
-	AttitudeDesiredData attitudeDesired;
+	StabilizationDesiredData stabDesired;
 	AttitudeActualData attitudeActual;
 	NedAccelData nedAccel;
 	GuidanceSettingsData guidanceSettings;
@@ -294,13 +451,13 @@ static void updateVtolDesiredAttitude()
 	
 	VelocityActualGet(&velocityActual);
 	VelocityDesiredGet(&velocityDesired);
-	AttitudeDesiredGet(&attitudeDesired);
+	StabilizationDesiredGet(&stabDesired);
 	VelocityDesiredGet(&velocityDesired);
 	AttitudeActualGet(&attitudeActual);
 	StabilizationSettingsGet(&stabSettings);
 	NedAccelGet(&nedAccel);
 	
-	attitudeDesired.Yaw = 0;	// try and face north
+	stabDesired.Yaw = 0;	// try and face north
 	
 	// Compute desired north command
 	northError = velocityDesired.North - velocityActual.North;
@@ -329,14 +486,14 @@ static void updateVtolDesiredAttitude()
 		       downIntegral * guidanceSettings.VerticalVelPID[GUIDANCESETTINGS_VERTICALVELPID_KI] -
 		       nedAccel.Down * guidanceSettings.VerticalVelPID[GUIDANCESETTINGS_VERTICALVELPID_KD]);
 	
-	attitudeDesired.Throttle = bound(downCommand, 0, 1);
+	stabDesired.Throttle = bound(downCommand, 0, 1);
 	
 	// Project the north and east command signals into the pitch and roll based on yaw.  For this to behave well the
 	// craft should move similarly for 5 deg roll versus 5 deg pitch
-	attitudeDesired.Pitch = bound(-northCommand * cosf(attitudeActual.Yaw * M_PI / 180) + 
+	stabDesired.Pitch = bound(-northCommand * cosf(attitudeActual.Yaw * M_PI / 180) + 
 				      -eastCommand * sinf(attitudeActual.Yaw * M_PI / 180),
 				      -guidanceSettings.MaxRollPitch, guidanceSettings.MaxRollPitch);
-	attitudeDesired.Roll = bound(-northCommand * sinf(attitudeActual.Yaw * M_PI / 180) + 
+	stabDesired.Roll = bound(-northCommand * sinf(attitudeActual.Yaw * M_PI / 180) + 
 				     eastCommand * cosf(attitudeActual.Yaw * M_PI / 180),
 				     -guidanceSettings.MaxRollPitch, guidanceSettings.MaxRollPitch);
 	
@@ -344,10 +501,14 @@ static void updateVtolDesiredAttitude()
 		// For now override throttle with manual control.  Disable at your risk, quad goes to China.
 		ManualControlCommandData manualControl;
 		ManualControlCommandGet(&manualControl);
-		attitudeDesired.Throttle = manualControl.Throttle;
+		stabDesired.Throttle = manualControl.Throttle;
 	}
 	
-	AttitudeDesiredSet(&attitudeDesired);
+	stabDesired.StabilizationMode[STABILIZATIONDESIRED_STABILIZATIONMODE_ROLL] = STABILIZATIONDESIRED_STABILIZATIONMODE_ATTITUDE;
+	stabDesired.StabilizationMode[STABILIZATIONDESIRED_STABILIZATIONMODE_PITCH] = STABILIZATIONDESIRED_STABILIZATIONMODE_ATTITUDE;
+	stabDesired.StabilizationMode[STABILIZATIONDESIRED_STABILIZATIONMODE_YAW] = STABILIZATIONDESIRED_STABILIZATIONMODE_ATTITUDE;
+	
+	StabilizationDesiredSet(&stabDesired);
 }
 
 /**

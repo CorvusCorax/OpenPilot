@@ -1,0 +1,22 @@
+<xml>
+    <object name="GuidanceSettings" singleinstance="true" settings="true">
+        <description>Settings for the @ref GuidanceModule</description>
+        <field name="GuidanceMode" units="" type="enum" elements="1" options="DUAL_LOOP,VELOCITY_CONTROL" defaultvalue="DUAL_LOOP"/>
+        <field name="HorizontalP" units="" type="float" elementnames="Kp,Max" defaultvalue="0.2,150"/>
+        <field name="HorizontalVelPID" units="" type="float" elementnames="Kp,Ki,Kd,ILimit" defaultvalue="0.1,0.002,0,1000"/>
+        <field name="VerticalP" units="" type="float" elementnames="Kp,Max" defaultvalue="0.1,200"/>
+        <field name="VerticalVelPID" units="" type="float" elementnames="Kp,Ki,Kd,ILimit" defaultvalue="0.1,0,0,0"/>
+        <field name="CoursePI" units="" type="float" elements="3" elementnames="Kp,Ki,ILimit" defaultvalue="0.2,0,0"/>
+        <field name="SpeedP" units="" type="float" elementnames="Kp,Max" defaultvalue="0.01,20"/>
+        <field name="AccelPI" units="" type="float" elements="3" elementnames="Kp,Ki,ILimit" defaultvalue="1,0.1,100"/>
+        <field name="PowerPI" units="" type="float" elements="3" elementnames="Kp,Ki,ILimit" defaultvalue="0.0002,0.00001,50000"/>
+        <field name="ThrottleControl" units="" type="enum" elements="1" options="FALSE,TRUE" defaultvalue="FALSE"/>
+        <field name="CruiseSpeed" units="cm/s" type="float" elements="1" defaultvalue="500"/>
+        <field name="MaxRollPitch" units="deg" type="float" elements="1" defaultvalue="10"/>
+        <field name="UpdatePeriod" units="" type="int32" elements="1" defaultvalue="100"/>
+        <access gcs="readwrite" flight="readwrite"/>
+        <telemetrygcs acked="true" updatemode="onchange" period="0"/>
+        <telemetryflight acked="true" updatemode="onchange" period="0"/>
+        <logging updatemode="never" period="0"/>
+    </object>
+</xml>
